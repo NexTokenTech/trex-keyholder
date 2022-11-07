@@ -15,19 +15,25 @@
 // specific language governing permissions and limitations
 // under the License..
 
-use std::env;
+#ifndef _EDL_DIRENT_H
+#define _EDL_DIRENT_H
 
-fn main() {
-    let sdk_dir = env::var("SGX_SDK").unwrap_or_else(|_| "/opt/intel/sgxsdk".to_string());
-    let is_sim = env::var("SGX_MODE").unwrap_or_else(|_| "HW".to_string());
+struct dirent_t
+{
+    uint64_t d_ino;
+    int64_t d_off;
+    unsigned short int d_reclen;
+    unsigned char d_type;
+    char d_name[256];
+};
 
-    println!("cargo:rustc-link-search=native=../lib");
-    println!("cargo:rustc-link-lib=static=Enclave_u");
+struct dirent64_t
+{
+    uint64_t d_ino;
+    int64_t d_off;
+    unsigned short int d_reclen;
+    unsigned char d_type;
+    char d_name[256];
+};
 
-    println!("cargo:rustc-link-search=native={}/lib64", sdk_dir);
-    match is_sim.as_ref() {
-        "SW" => println!("cargo:rustc-link-lib=dylib=sgx_urts_sim"),
-        "HW" => println!("cargo:rustc-link-lib=dylib=sgx_urts"),
-        _ => println!("cargo:rustc-link-lib=dylib=sgx_urts"), // Treat undefined as HW
-    }
-}
+#endif

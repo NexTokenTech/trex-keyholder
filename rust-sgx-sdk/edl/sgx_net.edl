@@ -13,21 +13,29 @@
 // "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
-// under the License..
+// under the License.
 
-use std::env;
+enclave {
 
-fn main() {
-    let sdk_dir = env::var("SGX_SDK").unwrap_or_else(|_| "/opt/intel/sgxsdk".to_string());
-    let is_sim = env::var("SGX_MODE").unwrap_or_else(|_| "HW".to_string());
+    include "sys/socket.h"
+    include "netdb.h"
 
-    println!("cargo:rustc-link-search=native=../lib");
-    println!("cargo:rustc-link-lib=static=Enclave_u");
+    from "sgx_socket.edl" import *;
+    from "sgx_asyncio.edl" import *;
+    from "sgx_fd.edl" import *;
+    from "sgx_time.edl" import *;
 
-    println!("cargo:rustc-link-search=native={}/lib64", sdk_dir);
-    match is_sim.as_ref() {
-        "SW" => println!("cargo:rustc-link-lib=dylib=sgx_urts_sim"),
-        "HW" => println!("cargo:rustc-link-lib=dylib=sgx_urts"),
-        _ => println!("cargo:rustc-link-lib=dylib=sgx_urts"), // Treat undefined as HW
-    }
-}
+    trusted {
+        /* define ECALLs here. */
+    };
+
+    untrusted {
+        int u_getaddrinfo_ocall([out] int *error,
+                                [in, string] const char *node,
+                                [in, string] const char *service,
+                                [in] const struct addrinfo *hints,
+                                [out] struct addrinfo **res);
+        void u_freeaddrinfo_ocall([user_check] struct addrinfo *res);
+        char *u_gai_strerror_ocall(int errcode);
+    };
+};

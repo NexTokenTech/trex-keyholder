@@ -1,0 +1,16 @@
+/bin/enclave.signed.so
+/bin/service
+/enclave/Cargo.lock
+/enclave/enclave.so
+/enclave/Enclave_t.c
+/enclave/Enclave_t.h
+/enclave/Enclave_t.o
+/lib/libenclave.a
+/lib/libEnclave_u.a
+/service/Cargo.lock
+/service/Enclave_u.c
+/service/Enclave_u.h
+/service/Enclave_u.o
+/enclave/target/
+/service/target/
+.idea
