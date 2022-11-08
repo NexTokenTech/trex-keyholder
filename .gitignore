@@ -16,3 +16,6 @@
 .idea
 /bin/prov_key.bin
 /target/
+/service/libEnclave_u.a
+/bin/ext_map.bin
+/bin/minheap_source.bin

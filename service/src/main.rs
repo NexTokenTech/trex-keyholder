@@ -19,14 +19,16 @@ extern crate serde_json;
 extern crate sgx_crypto_helper;
 extern crate sgx_types;
 extern crate sgx_urts;
+
 use sgx_types::*;
 use sgx_urts::SgxEnclave;
 
-use sgx_crypto_helper::RsaKeyPair;
-use sgx_crypto_helper::rsa3072::{Rsa3072KeyPair, Rsa3072PubKey};
+// use sgx_crypto_helper::RsaKeyPair;
+// use sgx_crypto_helper::rsa3072::{Rsa3072KeyPair, Rsa3072PubKey};
+// use std::io::Write;
 
 static ENCLAVE_FILE: &'static str = "enclave.signed.so";
-use std::io::Write;
+
 
 extern "C" {
     pub fn get_rsa_encryption_pubkey(
@@ -40,7 +42,14 @@ extern "C" {
         retval: *mut sgx_status_t,
         cipher_text: *const u8,
         cipher_len: usize,
-
+    ) -> sgx_status_t;
+    pub fn handle_private_keys(
+        eid: sgx_enclave_id_t,
+        retval: *mut sgx_status_t,
+        key:*const u8,
+        key_len: u32,
+        timestamp:u32,
+        enclave_index:u32
     ) -> sgx_status_t;
 }
 
@@ -69,123 +78,60 @@ fn main() {
             return;
         }
     };
-
-    let pubkey_size = 8192;
-    let mut pubkey = vec![0u8; pubkey_size as usize];
-
-    let mut retval = sgx_status_t::SGX_SUCCESS;
-
-    let result = unsafe {
-        get_rsa_encryption_pubkey(
-            enclave.geteid(),
-            &mut retval,
-            pubkey.as_mut_ptr(),
-            pubkey.len() as u32,
-        )
-    };
-
-    let rsa_pubkey: Rsa3072PubKey =
-        serde_json::from_slice(pubkey.as_slice()).expect("Invalid public key");
-    println!("got RSA pubkey {:?}", rsa_pubkey);
-
-    // Step 3: Generate a static data
-
-    let text = String::from("I send a message");
-    let text_slice = &text.into_bytes();
-
-    let mut ciphertext = Vec::new();
-    match rsa_pubkey.encrypt_buffer(text_slice, &mut ciphertext) {
-        Ok(n) => println!("Generated payload {} bytes", n),
-        Err(x) => println!("Error occured during encryption {}", x),
+    for i in 0..10 {
+        let mut retval = sgx_status_t::SGX_SUCCESS;
+        let mut text = String::from("I send a message");
+        text = text + &i.to_string();
+        let len = text.len() as u32;
+        println!("{:?}",len);
+        let result = unsafe {
+            handle_private_keys(
+                enclave.geteid(),
+                &mut retval,
+                text.as_ptr() as *const u8,
+                len,
+                1667874198 + i,
+                2
+            )
+        };
+        println!("{:?}",result);
     }
 
-    let result = unsafe {
-        decrypt_cipher_text(
-            enclave.geteid(),
-            &mut retval,
-            ciphertext.as_ptr() as *const u8,
-            ciphertext.len(),
-        )
-    };
-
-    // // Step 1: Generate a pair of RSA key
-    // let rsa_keypair = Rsa3072KeyPair::new().unwrap();
-    //
-    // // Step 2: Provision it to an enclave. RA-TLS based solution is more practical.
-    // // The current solution is just for demo. Do not use it in production.
-    // let rsa_key_json = serde_json::to_string(&rsa_keypair).unwrap();
+    // let pubkey_size = 8192;
+    // let mut pubkey = vec![0u8; pubkey_size as usize];
     //
     // let mut retval = sgx_status_t::SGX_SUCCESS;
     //
     // let result = unsafe {
-    //     fake_provisioning(
+    //     get_rsa_encryption_pubkey(
     //         enclave.geteid(),
     //         &mut retval,
-    //         rsa_key_json.as_ptr() as *const u8,
-    //         rsa_key_json.len(),
+    //         pubkey.as_mut_ptr(),
+    //         pubkey.len() as u32,
     //     )
     // };
     //
-    // match result {
-    //     sgx_status_t::SGX_SUCCESS => {}
-    //     _ => {
-    //         println!("[-] ECALL Enclave Failed {}!", result.as_str());
-    //         return;
-    //     }
-    // }
+    // let rsa_pubkey: Rsa3072PubKey =
+    //     serde_json::from_slice(pubkey.as_slice()).expect("Invalid public key");
+    // println!("got RSA pubkey {:?}", rsa_pubkey);
     //
     // // Step 3: Generate a static data
     //
-    // let text = String::from("Can you decrypt this").repeat(300);
+    // let text = String::from("I send a message");
     // let text_slice = &text.into_bytes();
     //
     // let mut ciphertext = Vec::new();
-    // //match rsa_keypair.encrypt_buffer(text_slice, &mut ciphertext) {
-    // //    Ok(n) => println!("Generated payload {} bytes", n),
-    // //    Err(x) => println!("Error occured during encryption {}", x),
-    // //}
-    //
-    // let exported_pubkey: Rsa3072PubKey = rsa_keypair.export_pubkey().unwrap();
-    // let serialized_pubkey = serde_json::to_string(&exported_pubkey).unwrap();
-    // println!("exported pubkey = {}", serialized_pubkey);
-    //
-    // let imported_pubkey: Rsa3072PubKey = serde_json::from_str(&serialized_pubkey).unwrap();
-    // println!("imported pubkey = {:?}", imported_pubkey);
-    // match imported_pubkey.encrypt_buffer(text_slice, &mut ciphertext) {
+    // match rsa_pubkey.encrypt_buffer(text_slice, &mut ciphertext) {
     //     Ok(n) => println!("Generated payload {} bytes", n),
     //     Err(x) => println!("Error occured during encryption {}", x),
     // }
-    //
-    // match std::fs::File::create("static_data.bin") {
-    //     Ok(mut f) => {
-    //         f.write_all(&ciphertext).unwrap();
-    //         println!("File saved successfully!");
-    //     }
-    //     Err(x) => {
-    //         println!("Create static_data.bin failed {}", x);
-    //         return;
-    //     }
-    // }
-    //
-    // let hello_string = "Hello world!".to_string();
     // let result = unsafe {
-    //     say_something(
+    //     decrypt_cipher_text(
     //         enclave.geteid(),
     //         &mut retval,
-    //         hello_string.as_ptr() as *const u8,
-    //         hello_string.len(),
+    //         ciphertext.as_ptr() as *const u8,
+    //         ciphertext.len(),
     //     )
     // };
-    //
-    // match result {
-    //     sgx_status_t::SGX_SUCCESS => {}
-    //     _ => {
-    //         println!("[-] ECALL Enclave Failed {}!", result.as_str());
-    //         return;
-    //     }
-    // }
-    //
-    // println!("[+] say_something success...");
-
     enclave.destroy();
 }

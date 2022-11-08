@@ -21,9 +21,11 @@ enclave {
     from "sgx_tstdc.edl" import *;
     from "sgx_tprotected_fs.edl" import *;
     from "sgx_fs.edl" import *;
+
     trusted {
         /* define ECALLs here. */
         public sgx_status_t get_rsa_encryption_pubkey([out, size=pubkey_size] uint8_t* pubkey, uint32_t pubkey_size);
         public sgx_status_t decrypt_cipher_text([in, size=cipher_len] const uint8_t* cipher_text, size_t cipher_len);
+        public sgx_status_t handle_private_keys([in, size=key_len] const uint8_t* key, size_t key_len,uint32_t timestamp, uint32_t enclave_index);
     };
 };
