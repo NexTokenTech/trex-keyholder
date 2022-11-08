@@ -1,42 +1,17 @@
 [package]
 name = "service"
 version = "1.0.0"
-authors = ["Teaclave"]
+authors = ["The Teaclave Authors"]
 build = "build.rs"
 
-[dependencies] # You can specify the features you need for urts, such as global_exit and global_init
-hex = "0.4.3"
-log = "0.4"
-env_logger = "0.9"
-base58 = "0.2"
-clap = { version = "2.33", features = ["yaml"] }
-lazy_static = "1.4.0"
-thiserror = "1.0"
-dirs = "3.0.2"
-serde = "1.0"
-serde_json = "1.0"
-serde_derive = "1.0"
-#jsonrpsee = { version = "0.2.0", features = ["client", "ws-server", "macros"] }
-async-trait = "0.1.50"
-#tokio = { version = "1.6.1", features = ["full"] }
-parse_duration = "2.1.1"
-warp = "0.3"
-futures = "0.3"
-
-codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive"] }
-primitive-types = { version = "0.11.1", default-features = false, features = ["codec"] }
-
+[dependencies]
 sgx_types = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
-sgx_urts = { git = "https://github.com/apache/teaclave-sgx-sdk.git"}
+sgx_urts = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_crypto_helper = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+serde_json = "1.0"
 
-# Substrate dependencies
-#sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.27" }
-#pallet-balances = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.27" }
-#sp-core = {version = "6.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.27" }
-#sp-keyring = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.27" }
-#frame-system = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.27" }
-#sp-finality-grandpa = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.27" }
-#frame-support = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.27" }
-
-[features]
-default = []
+[patch.'https://github.com/apache/teaclave-sgx-sdk.git']
+sgx_crypto_helper = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk" }
+sgx_types = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk" }
+sgx_ucrypto = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk" }
+sgx_urts = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk" }

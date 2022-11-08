@@ -15,23 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/* This is your enclave EDL file, please specify the EDL files you need and ECALLs/OCALLs needed */
-
 enclave {
     from "sgx_tstd.edl" import *;
     from "sgx_stdio.edl" import *;
-    from "sgx_backtrace.edl" import *;
     from "sgx_tstdc.edl" import *;
-    trusted
-    {
-        /* ECALLs */
-        public sgx_status_t ecall_test([in, size=len] const uint8_t* some_string, size_t len);
-
-        public sgx_status_t get_rsa_encryption_pubkey(
-        			[out, size=pubkey_size] uint8_t* pubkey, uint32_t pubkey_size);
-    };
-    untrusted
-    {
-        /* OCALLs */
+    from "sgx_tprotected_fs.edl" import *;
+    from "sgx_fs.edl" import *;
+    trusted {
+        /* define ECALLs here. */
+        public sgx_status_t get_rsa_encryption_pubkey([out, size=pubkey_size] uint8_t* pubkey, uint32_t pubkey_size);
+        public sgx_status_t decrypt_cipher_text([in, size=cipher_len] const uint8_t* cipher_text, size_t cipher_len);
     };
 };

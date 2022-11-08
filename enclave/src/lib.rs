@@ -27,41 +27,53 @@ extern crate sgx_tstd as std;
 extern crate serde_json;
 extern crate sgx_crypto_helper;
 
+pub const KEYFILE: &'static str = "prov_key.bin";
+
 use sgx_types::*;
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 use std::prelude::v1::*;
-#[allow(unused)]
 use std::sgxfs::SgxFile;
 use std::slice;
-#[allow(unused)]
+use std::string::String;
 use std::vec::Vec;
 
-use sgx_crypto_helper::rsa3072::Rsa3072KeyPair;
-use sgx_crypto_helper::rsa3072::Rsa3072PubKey;
 use sgx_crypto_helper::RsaKeyPair;
-
-pub const KEYFILE: &'static str = "prov_key.bin";
-#[allow(unused)]
-static ENCLAVE_FILE: &'static str = "enclave.signed.so";
-
-#[no_mangle]
-pub extern "C" fn ecall_test(some_string: *const u8, some_len: usize) -> sgx_status_t {
-    let str_slice = unsafe { slice::from_raw_parts(some_string, some_len) };
-    let _ = io::stdout().write(str_slice);
-
-    println!("Message from the enclave");
-
-    sgx_status_t::SGX_SUCCESS
-}
+use sgx_crypto_helper::rsa3072::{Rsa3072KeyPair,Rsa3072PubKey};
 
 #[no_mangle]
 pub unsafe extern "C" fn get_rsa_encryption_pubkey(
     pubkey: *mut u8,
     pubkey_size: u32,
 ) -> sgx_status_t {
-    // Step 1: Generate a pair of RSA key
-    let rsa_keypair = Rsa3072KeyPair::new().unwrap();
-    //TODO: store rsa_keypair in SgxFile
+    if SgxFile::open(KEYFILE).is_err() {
+        // info!("[Enclave] Keyfile not found, creating new! {}", RSA3072_SEALED_KEY_FILE);
+        let rsa_keypair =
+            Rsa3072KeyPair::new().unwrap();
+        // println!("[Enclave] generated RSA3072 key pair. Cleartext: {}", rsa_key_json);
+        let rsa_key_json = serde_json::to_string(&rsa_keypair).unwrap();
+        provisioning_key(rsa_key_json.as_ptr() as *const u8,
+                         rsa_key_json.len());
+    }
+    let mut keyvec: Vec<u8> = Vec::new();
+    let key_json_str = match SgxFile::open(KEYFILE) {
+        Ok(mut f) => match f.read_to_end(&mut keyvec) {
+            Ok(len) => {
+                println!("Read {} bytes from Key file", len);
+                std::str::from_utf8(&keyvec).unwrap()
+            }
+            Err(x) => {
+                println!("Read keyfile failed {}", x);
+                return sgx_status_t::SGX_ERROR_UNEXPECTED;
+            }
+        },
+        Err(x) => {
+            println!("get_sealed_pcl_key cannot open keyfile, please check if key is provisioned successfully! {}", x);
+            return sgx_status_t::SGX_ERROR_UNEXPECTED;
+        }
+    };
+
+    let rsa_keypair: Rsa3072KeyPair = serde_json::from_str(&key_json_str).unwrap();
+
     let rsa_pubkey: Rsa3072PubKey = rsa_keypair.export_pubkey().unwrap();
 
     let rsa_pubkey_json = match serde_json::to_string(&rsa_pubkey) {
@@ -83,5 +95,57 @@ pub unsafe extern "C" fn get_rsa_encryption_pubkey(
     // fill the right side with whitespace
     right.iter_mut().for_each(|x| *x = 0x20);
 
+    sgx_status_t::SGX_SUCCESS
+}
+
+fn provisioning_key(key_ptr: *const u8, some_len: usize){
+    //TODO error handler
+    let key_slice = unsafe { slice::from_raw_parts(key_ptr, some_len) };
+
+    match SgxFile::create(KEYFILE) {
+        Ok(mut f) => match f.write_all(key_slice) {
+            Ok(()) => {
+                println!("SgxFile write key file success!");
+            }
+            Err(x) => {
+                println!("SgxFile write key file failed! {}", x);
+            }
+        },
+        Err(x) => {
+            println!("SgxFile create file {} error {}", KEYFILE, x);
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn decrypt_cipher_text(cipher_text: *const u8, cipher_len: usize) -> sgx_status_t{
+    let ciphertext_bin = unsafe { slice::from_raw_parts(cipher_text, cipher_len) };
+    let mut keyvec: Vec<u8> = Vec::new();
+
+    let key_json_str = match SgxFile::open(KEYFILE) {
+        Ok(mut f) => match f.read_to_end(&mut keyvec) {
+            Ok(len) => {
+                println!("Read {} bytes from Key file", len);
+                std::str::from_utf8(&keyvec).unwrap()
+            }
+            Err(x) => {
+                println!("Read keyfile failed {}", x);
+                return sgx_status_t::SGX_ERROR_UNEXPECTED;
+            }
+        },
+        Err(x) => {
+            println!("get_sealed_pcl_key cannot open keyfile, please check if key is provisioned successfully! {}", x);
+            return sgx_status_t::SGX_ERROR_UNEXPECTED;
+        }
+    };
+    //println!("key_json = {}", key_json_str);
+    let rsa_keypair: Rsa3072KeyPair = serde_json::from_str(&key_json_str).unwrap();
+    //println!("Recovered key = {:?}", rsa_keypair);
+
+    let mut plaintext = Vec::new();
+    rsa_keypair.decrypt_buffer(&ciphertext_bin, &mut plaintext).unwrap();
+
+    let decrypted_string = String::from_utf8(plaintext).unwrap();
+    println!("decrypted data = {}", decrypted_string);
     sgx_status_t::SGX_SUCCESS
 }

@@ -1,4 +1,19 @@
-# Dummy makefile, will call the host and enclave makefile when requested.
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 
 ######## SGX SDK Settings ########
 
@@ -60,7 +75,7 @@ App_Include_Paths := -I ./service -I./include -I$(SGX_SDK)/include -I$(CUSTOM_ED
 App_C_Flags := $(SGX_COMMON_CFLAGS) -fPIC -Wno-attributes $(App_Include_Paths)
 
 App_Rust_Path := ./service/target/release
-App_Enclave_u_Object :=lib/libEnclave_u.a
+App_Enclave_u_Object :=service/libEnclave_u.a
 App_Name := bin/service
 
 ######## Enclave Settings ########
@@ -83,8 +98,8 @@ RustEnclave_Include_Paths := -I$(CUSTOM_COMMON_PATH)/inc -I$(CUSTOM_EDL_PATH) -I
 RustEnclave_Link_Libs := -L$(CUSTOM_LIBRARY_PATH) -lenclave
 RustEnclave_Compile_Flags := $(SGX_COMMON_CFLAGS) $(ENCLAVE_CFLAGS) $(RustEnclave_Include_Paths)
 RustEnclave_Link_Flags := -Wl,--no-undefined -nostdlib -nodefaultlibs -nostartfiles -L$(SGX_LIBRARY_PATH) \
-	-Wl,--whole-archive -l$(Trts_Library_Name) -Wl,--no-whole-archive \
-	-Wl,--start-group -lsgx_tstdc -l$(Service_Library_Name) -l$(Crypto_Library_Name) $(RustEnclave_Link_Libs) -Wl,--end-group \
+	-Wl,--whole-archive -l$(Trts_Library_Name) -l${ProtectedFs_Library_Name} -Wl,--no-whole-archive \
+	-Wl,--start-group -lsgx_tcxx -lsgx_tstdc -l$(Service_Library_Name) -l$(Crypto_Library_Name) $(RustEnclave_Link_Libs) -Wl,--end-group \
 	-Wl,--version-script=enclave/Enclave.lds \
 	$(ENCLAVE_LDFLAGS)
 
@@ -109,6 +124,7 @@ service/Enclave_u.o: $(Enclave_EDL_Files)
 
 $(App_Enclave_u_Object): service/Enclave_u.o
 	$(AR) rcsD $@ $^
+	cp $(App_Enclave_u_Object) ./lib
 
 $(App_Name): $(App_Enclave_u_Object) $(App_SRC_Files)
 	@cd service && SGX_SDK=$(SGX_SDK) cargo build $(App_Rust_Flags)
@@ -138,6 +154,6 @@ enclave:
 
 .PHONY: clean
 clean:
-	@rm -f $(App_Name) $(RustEnclave_Name) $(Signed_RustEnclave_Name) enclave/*_t.* service/*_u.* lib/*.a
+	@rm -f $(App_Name) $(RustEnclave_Name) $(Signed_RustEnclave_Name) enclave/*_t.* service/*_u.* lib/*.a bin/*.bin
 	@cd enclave && cargo clean && rm -f Cargo.lock
 	@cd service && cargo clean && rm -f Cargo.lock
