@@ -26,6 +26,7 @@ use sgx_urts::SgxEnclave;
 use sgx_crypto_helper::RsaKeyPair;
 use sgx_crypto_helper::rsa3072::{Rsa3072KeyPair, Rsa3072PubKey};
 // use std::io::Write;
+use std::slice;
 
 static ENCLAVE_FILE: &'static str = "enclave.signed.so";
 
@@ -45,6 +46,17 @@ extern "C" {
         timestamp:u32,
         enclave_index:u32
     ) -> sgx_status_t;
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ocall_output_key(
+    key: *const u8,
+    key_len: u32,
+) -> sgx_status_t {
+    let private_key_text_vec = unsafe { slice::from_raw_parts(key, key_len as usize) };
+    let str = String::from_utf8(private_key_text_vec.to_vec());
+    println!("I'm in ocall function {:?}",str);
+    sgx_status_t::SGX_SUCCESS
 }
 
 fn init_enclave() -> SgxResult<SgxEnclave> {

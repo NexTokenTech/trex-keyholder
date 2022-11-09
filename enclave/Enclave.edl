@@ -27,4 +27,7 @@ enclave {
         public sgx_status_t get_rsa_encryption_pubkey([out, size=pubkey_size] uint8_t* pubkey, uint32_t pubkey_size);
         public sgx_status_t handle_private_keys([in, size=key_len] const uint8_t* key, size_t key_len,uint32_t timestamp, uint32_t enclave_index);
     };
+    untrusted {
+    	sgx_status_t ocall_output_key([in, size=key_len] const uint8_t* key, size_t key_len);
+    };
 };

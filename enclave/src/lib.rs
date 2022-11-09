@@ -50,6 +50,15 @@ use sgx_crypto_helper::rsa3072::{Rsa3072KeyPair,Rsa3072PubKey};
 lazy_static! {
     static ref MIN_BINARY_HEAP: Mutex<BinaryHeap<Reverse<Ext>>> = Mutex::new(BinaryHeap::new());
 }
+
+extern "C" {
+    pub fn ocall_output_key(
+        ret_val : *mut sgx_status_t,
+        key: *const u8,
+        key_len: u32,
+    ) -> sgx_status_t;
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn get_rsa_encryption_pubkey(
     pubkey: *mut u8,
@@ -134,25 +143,23 @@ pub extern "C" fn handle_private_keys(key:*const u8,key_len: u32,timestamp:u32,e
         }
     };
 
-    println!("min_heap_len {:?}",min_heap.len());
-    let mut decrypted_msgs:Vec<String> = Vec::new();
     loop {
         if let Some(Reverse(v)) = min_heap.peek() {
             if v.timestamp <=  now_time as u32 {
-                println!("small {:?}",min_heap.peek());
                 let decrpyted_msg = get_decrypt_cipher_text(v.private_key.as_ptr() as *const u8,v.private_key.len());
-                decrypted_msgs.push(decrpyted_msg);
+                let mut rt : sgx_status_t = sgx_status_t::SGX_ERROR_UNEXPECTED;
+                let res = unsafe {
+                    ocall_output_key(&mut rt as *mut sgx_status_t,decrpyted_msg.as_ptr() as *const u8,decrpyted_msg.len() as u32);
+                };
                 min_heap.pop();
             }else{
-                println!("big {:?}",min_heap.peek());
                 break;
             }
         }else{
             break;
         }
     }
-    println!("min heap len:{:?}",min_heap.len());
-    println!("decrypted msg list:{:?}",decrypted_msgs);
+
     sgx_status_t::SGX_SUCCESS
 }
 
