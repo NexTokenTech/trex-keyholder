@@ -1,0 +1,20 @@
+name: "trex-key-holding-service"
+version: "0.1.0"
+about: Key-holder node using Intel SGX TEE for TREX network
+authors: "NexToken Technology LLC <team@trex.ink>"
+
+# AppSettings can be defined as a list and are **not** ascii case sensitive
+settings:
+  - ColoredHelp
+  - SubcommandRequired
+
+# All subcommands must be listed in the 'subcommand:' object, where the key to
+# the list is the name of the subcommand, and all settings for that command are
+# part of a Hash
+args:
+  - node-server: ws://127.0.0.1
+  - node-port: 9944
+  - ws-external:
+  - mu-ra-port: 3443
+  - enable-metrics: true
+  - metrics-port: 8787

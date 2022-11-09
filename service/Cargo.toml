@@ -1,0 +1,25 @@
+[package]
+name = "trex-keyholder"
+version = "0.1.0"
+authors = ["NexToken Technology LLC <team@trex.ink>"]
+license = "Apache-2.0"
+build = "build.rs"
+edition = "2021"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+log = { version = "0.4.14"}
+env_logger = "0.9.0"
+ws = { version = "0.9.2", features = ["ssl"] }
+serde = { version = "1.0.136", features = ["derive"], default-features = false }
+serde_yaml = "0.9.14"
+serde_json = "1.0"
+
+# Substrate dependencies
+sp-runtime = { version = "6.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.30" }
+trex-runtime = {version = "4.0.0-dev", git = "https://github.com/NexTokenTech/TREX", branch = "main"}
+
+# SCS dependencies
+substrate-api-client = { git = "https://github.com/scs/substrate-api-client.git", branch = "polkadot-v0.9.30" }
