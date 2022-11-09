@@ -25,6 +25,7 @@ sgx_crypto_helper = { package = "sgx_tcrypto_helper", git = "https://github.com/
 serde_json = { git = "https://github.com/mesalock-linux/serde-json-sgx" }
 serde = { git = "https://github.com/mesalock-linux/serde-sgx" }
 serde_derive = { git = "https://github.com/mesalock-linux/serde-sgx" }
+lazy_static = { version = "*", default-features = false, features = ["spin_no_std"] }
 #kvdb = { git = "https://github.com/mesalock-linux/parity-common-sgx" }
 #kvdb-memorydb = { git = "https://github.com/mesalock-linux/parity-common-sgx" }
 

@@ -23,8 +23,8 @@ extern crate sgx_urts;
 use sgx_types::*;
 use sgx_urts::SgxEnclave;
 
-// use sgx_crypto_helper::RsaKeyPair;
-// use sgx_crypto_helper::rsa3072::{Rsa3072KeyPair, Rsa3072PubKey};
+use sgx_crypto_helper::RsaKeyPair;
+use sgx_crypto_helper::rsa3072::{Rsa3072KeyPair, Rsa3072PubKey};
 // use std::io::Write;
 
 static ENCLAVE_FILE: &'static str = "enclave.signed.so";
@@ -36,12 +36,6 @@ extern "C" {
         retval: *mut sgx_status_t,
         pubkey: *mut u8,
         pubkey_size: u32,
-    ) -> sgx_status_t;
-    pub fn decrypt_cipher_text(
-        eid: sgx_enclave_id_t,
-        retval: *mut sgx_status_t,
-        cipher_text: *const u8,
-        cipher_len: usize,
     ) -> sgx_status_t;
     pub fn handle_private_keys(
         eid: sgx_enclave_id_t,
@@ -78,60 +72,71 @@ fn main() {
             return;
         }
     };
+
+    let pubkey_size = 8192;
+    let mut pubkey = vec![0u8; pubkey_size as usize];
+
+    let mut retval = sgx_status_t::SGX_SUCCESS;
+
+    let result = unsafe {
+        get_rsa_encryption_pubkey(
+            enclave.geteid(),
+            &mut retval,
+            pubkey.as_mut_ptr(),
+            pubkey.len() as u32,
+        )
+    };
+
+    let rsa_pubkey: Rsa3072PubKey =
+        serde_json::from_slice(pubkey.as_slice()).expect("Invalid public key");
+    println!("got RSA pubkey {:?}", rsa_pubkey);
+
+    //A bunch of data decrypted by time
     for i in 0..10 {
         let mut retval = sgx_status_t::SGX_SUCCESS;
-        let mut text = String::from("I send a message");
-        text = text + &i.to_string();
-        let len = text.len() as u32;
-        println!("{:?}",len);
+        let mut private_key = String::from("I send a private_key");
+        private_key = private_key + &i.to_string();
+        let private_key_slice = &private_key.into_bytes();
+        let mut private_key_cipher = Vec::new();
+        match rsa_pubkey.encrypt_buffer(private_key_slice, &mut private_key_cipher) {
+            Ok(n) => println!("Generated payload {} bytes", n),
+            Err(x) => println!("Error occured during encryption {}", x),
+        }
         let result = unsafe {
             handle_private_keys(
                 enclave.geteid(),
                 &mut retval,
-                text.as_ptr() as *const u8,
-                len,
+                private_key_cipher.as_ptr() as *const u8,
+                private_key_cipher.len() as u32,
                 1667874198 + i,
                 2
             )
         };
         println!("{:?}",result);
     }
+    // Data that has not been decrypted in time
+    for i in 10..15 {
+        let mut retval = sgx_status_t::SGX_SUCCESS;
+        let mut private_key = String::from("I send a private_key");
+        private_key = private_key + &i.to_string();
+        let private_key_slice = &private_key.into_bytes();
+        let mut private_key_cipher = Vec::new();
+        match rsa_pubkey.encrypt_buffer(private_key_slice, &mut private_key_cipher) {
+            Ok(n) => println!("Generated payload {} bytes", n),
+            Err(x) => println!("Error occured during encryption {}", x),
+        }
+        let result = unsafe {
+            handle_private_keys(
+                enclave.geteid(),
+                &mut retval,
+                private_key_cipher.as_ptr() as *const u8,
+                private_key_cipher.len() as u32,
+                1667983347 + i,
+                2
+            )
+        };
+        println!("{:?}",result);
+    }
 
-    // let pubkey_size = 8192;
-    // let mut pubkey = vec![0u8; pubkey_size as usize];
-    //
-    // let mut retval = sgx_status_t::SGX_SUCCESS;
-    //
-    // let result = unsafe {
-    //     get_rsa_encryption_pubkey(
-    //         enclave.geteid(),
-    //         &mut retval,
-    //         pubkey.as_mut_ptr(),
-    //         pubkey.len() as u32,
-    //     )
-    // };
-    //
-    // let rsa_pubkey: Rsa3072PubKey =
-    //     serde_json::from_slice(pubkey.as_slice()).expect("Invalid public key");
-    // println!("got RSA pubkey {:?}", rsa_pubkey);
-    //
-    // // Step 3: Generate a static data
-    //
-    // let text = String::from("I send a message");
-    // let text_slice = &text.into_bytes();
-    //
-    // let mut ciphertext = Vec::new();
-    // match rsa_pubkey.encrypt_buffer(text_slice, &mut ciphertext) {
-    //     Ok(n) => println!("Generated payload {} bytes", n),
-    //     Err(x) => println!("Error occured during encryption {}", x),
-    // }
-    // let result = unsafe {
-    //     decrypt_cipher_text(
-    //         enclave.geteid(),
-    //         &mut retval,
-    //         ciphertext.as_ptr() as *const u8,
-    //         ciphertext.len(),
-    //     )
-    // };
     enclave.destroy();
 }

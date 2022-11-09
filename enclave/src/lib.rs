@@ -26,10 +26,11 @@ extern crate sgx_types;
 extern crate sgx_tstd as std;
 extern crate serde_json;
 extern crate sgx_crypto_helper;
+#[macro_use]
+extern crate lazy_static;
 
 pub const KEYFILE: &'static str = "prov_key.bin";
-pub const EXTMAPFILE: &'static str = "ext_map.bin";
-pub const MINHEAPSOURCEFILE: &'static str = "minheap_source.bin";
+pub const MINHEAPFILE: &'static str = "minheap.bin";
 
 use sgx_types::*;
 use std::io::{Read, Write};
@@ -38,13 +39,17 @@ use std::sgxfs::SgxFile;
 use std::slice;
 use std::string::String;
 use std::vec::Vec;
-use std::collections::HashMap;
-// use std::{cmp::Reverse, collections::BinaryHeap};
+use std::sync::SgxMutex as Mutex;
+use std::{cmp::Ordering,cmp::Reverse, collections::BinaryHeap};
+use std::time::{SystemTime};
+use std::untrusted::time::SystemTimeEx;
 
 use sgx_crypto_helper::RsaKeyPair;
 use sgx_crypto_helper::rsa3072::{Rsa3072KeyPair,Rsa3072PubKey};
 
-
+lazy_static! {
+    static ref MIN_BINARY_HEAP: Mutex<BinaryHeap<Reverse<Ext>>> = Mutex::new(BinaryHeap::new());
+}
 #[no_mangle]
 pub unsafe extern "C" fn get_rsa_encryption_pubkey(
     pubkey: *mut u8,
@@ -102,24 +107,83 @@ pub unsafe extern "C" fn get_rsa_encryption_pubkey(
 }
 
 #[no_mangle]
-pub extern "C" fn decrypt_cipher_text(cipher_text: *const u8, cipher_len: usize) -> sgx_status_t{
+pub extern "C" fn handle_private_keys(key:*const u8,key_len: u32,timestamp:u32,enclave_index:u32) -> sgx_status_t{
+    println!("I'm in enclave");
+    // FIXME: Need to do some fault tolerance
+    let mut min_heap = MIN_BINARY_HEAP.lock().unwrap();
+
+    let private_key_text_vec = unsafe { slice::from_raw_parts(key, key_len as usize) };
+    let ext_item = Ext{
+        timestamp,
+        enclave_index,
+        private_key:private_key_text_vec.to_vec()
+    };
+    min_heap.push(Reverse(ext_item));
+
+    let now = SystemTime::now();
+    let mut now_time:u64 = 0;
+    match now.duration_since(SystemTime::UNIX_EPOCH) {
+        Ok(elapsed) => {
+            // it prints '2'
+            println!("{}", elapsed.as_secs());
+            now_time = elapsed.as_secs();
+        }
+        Err(e) => {
+            // an error occurred!
+            println!("Error: {:?}", e);
+        }
+    };
+
+    println!("min_heap_len {:?}",min_heap.len());
+    let mut decrypted_msgs:Vec<String> = Vec::new();
+    loop {
+        if let Some(Reverse(v)) = min_heap.peek() {
+            if v.timestamp <=  now_time as u32 {
+                println!("small {:?}",min_heap.peek());
+                let decrpyted_msg = get_decrypt_cipher_text(v.private_key.as_ptr() as *const u8,v.private_key.len());
+                decrypted_msgs.push(decrpyted_msg);
+                min_heap.pop();
+            }else{
+                println!("big {:?}",min_heap.peek());
+                break;
+            }
+        }else{
+            break;
+        }
+    }
+    println!("min heap len:{:?}",min_heap.len());
+    println!("decrypted msg list:{:?}",decrypted_msgs);
+    sgx_status_t::SGX_SUCCESS
+}
+
+#[derive(Debug,Clone,PartialEq,Eq,PartialOrd)]
+pub struct Ext{
+    timestamp:u32,
+    enclave_index:u32,
+    private_key:Vec<u8>,
+}
+
+impl Ord for Ext {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.timestamp.cmp(&other.timestamp).reverse()
+    }
+}
+
+fn get_decrypt_cipher_text(cipher_text: *const u8, cipher_len: usize) -> String{
     let ciphertext_bin = unsafe { slice::from_raw_parts(cipher_text, cipher_len) };
     let mut keyvec: Vec<u8> = Vec::new();
 
     let key_json_str = match SgxFile::open(KEYFILE) {
         Ok(mut f) => match f.read_to_end(&mut keyvec) {
-            Ok(len) => {
-                println!("Read {} bytes from Key file", len);
+            Ok(_len) => {
                 std::str::from_utf8(&keyvec).unwrap()
             }
-            Err(x) => {
-                println!("Read keyfile failed {}", x);
-                return sgx_status_t::SGX_ERROR_UNEXPECTED;
+            Err(_x) => {
+                ""
             }
         },
-        Err(x) => {
-            println!("get_sealed_pcl_key cannot open keyfile, please check if key is provisioned successfully! {}", x);
-            return sgx_status_t::SGX_ERROR_UNEXPECTED;
+        Err(_x) => {
+            ""
         }
     };
     //println!("key_json = {}", key_json_str);
@@ -130,41 +194,7 @@ pub extern "C" fn decrypt_cipher_text(cipher_text: *const u8, cipher_len: usize)
     rsa_keypair.decrypt_buffer(&ciphertext_bin, &mut plaintext).unwrap();
 
     let decrypted_string = String::from_utf8(plaintext).unwrap();
-    println!("decrypted data = {}", decrypted_string);
-    sgx_status_t::SGX_SUCCESS
-}
-
-#[no_mangle]
-pub extern "C" fn handle_private_keys(key:*const u8,key_len: u32,timestamp:u32,enclave_index:u32) -> sgx_status_t{
-    println!("I'm in enclave");
-    //minheap read from file
-    let mut minheap:Vec<u32> = Vec::new();
-    let minheap_json_str = get_json_str(MINHEAPSOURCEFILE);
-    minheap = serde_json::from_str(&minheap_json_str).unwrap_or(minheap);
-    //insert new timestamp
-    minheap.push(timestamp);
-    // derive string from key and key_len
-    let private_key_text_vec = unsafe { slice::from_raw_parts(key, key_len as usize) };
-    let private_key = String::from_utf8(private_key_text_vec.to_vec()).unwrap_or("".to_string());
-    // ext_map read from file
-    let mut ext_map:HashMap<String,u32> = HashMap::<String,u32>::new();
-    let ext_map_json_str = get_json_str(EXTMAPFILE);
-    ext_map = serde_json::from_str(&ext_map_json_str).unwrap_or(ext_map);
-    //insert new private_key,timestamp
-    ext_map.insert(private_key,timestamp);
-    // store minheap to sgxfile
-    let minheap_json_new = serde_json::to_string(&minheap).unwrap();
-    provisioning_key(minheap_json_new.as_ptr() as * const u8,
-                     minheap_json_new.len(),
-                     MINHEAPSOURCEFILE);
-    println!("{:?}",minheap_json_new);
-    // store ext_map to sgxfile
-    let ext_map_json_new = serde_json::to_string(&ext_map).unwrap();
-    provisioning_key(ext_map_json_new.as_ptr() as *const u8,
-                     ext_map_json_new.len(),
-                     EXTMAPFILE);
-    println!("{}",ext_map_json_new);
-    sgx_status_t::SGX_SUCCESS
+    decrypted_string
 }
 
 fn get_json_str(filename:&str) -> String{
