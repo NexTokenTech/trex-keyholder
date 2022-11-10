@@ -1,0 +1,15 @@
+/service/Enclave_u.c
+/service/Enclave_u.h
+/service/Enclave_u.o
+/service/libEnclave_u.a
+/target/
+/lib/libenclave.a
+/lib/libEnclave_u.a
+/enclave-runtime/Enclave_t.o
+/enclave-runtime/Enclave_t.c
+/enclave-runtime/Enclave_t.h
+/enclave-runtime/enclave.so
+/enclave-runtime/target/
+/bin/trex-keyholder
+/bin/enclave.signed.so
+.idea
