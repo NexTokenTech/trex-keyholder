@@ -2,6 +2,7 @@
 name = "key-holder-enclave"
 version = "1.0.0"
 authors = ["The Teaclave Authors"]
+edition = "2021"
 
 [workspace]
 members = []

@@ -46,6 +46,8 @@ use std::untrusted::time::SystemTimeEx;
 
 use sgx_crypto_helper::RsaKeyPair;
 use sgx_crypto_helper::rsa3072::{Rsa3072KeyPair,Rsa3072PubKey};
+#[allow(unused)]
+use sp_core::crypto::Pair;
 
 lazy_static! {
     static ref MIN_BINARY_HEAP: Mutex<BinaryHeap<Reverse<Ext>>> = Mutex::new(BinaryHeap::new());
@@ -149,7 +151,7 @@ pub extern "C" fn handle_private_keys(key:*const u8,key_len: u32,timestamp:u32,e
             if v.timestamp <=  now_time as u32 {
                 let decrpyted_msg = get_decrypt_cipher_text(v.private_key.as_ptr() as *const u8,v.private_key.len());
                 let mut rt : sgx_status_t = sgx_status_t::SGX_ERROR_UNEXPECTED;
-                let res = unsafe {
+                let _res = unsafe {
                     ocall_output_key(&mut rt as *mut sgx_status_t,decrpyted_msg.as_ptr() as *const u8,decrpyted_msg.len() as u32);
                 };
                 min_heap.pop();
@@ -205,6 +207,7 @@ fn get_decrypt_cipher_text(cipher_text: *const u8, cipher_len: usize) -> String{
     decrypted_string
 }
 
+#[allow(unused)]
 fn get_json_str(filename:&str) -> String{
     let mut keyvec: Vec<u8> = Vec::new();
 
