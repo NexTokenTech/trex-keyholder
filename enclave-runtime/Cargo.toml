@@ -15,7 +15,7 @@ default = []
 
 [target.'cfg(not(target_env = "sgx"))'.dependencies] # You can remove what you don't need, except types and tstd
 sgx_types = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
-sgx_tstd = { git = "https://github.com/apache/teaclave-sgx-sdk.git", features = ["backtrace"] }
+sgx_tstd = { git = "https://github.com/apache/teaclave-sgx-sdk.git", features = ["untrusted_fs","net","backtrace"]  }
 sgx_tcrypto = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 sgx_trts = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 sgx_tseal = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
@@ -31,6 +31,9 @@ serde_derive = { git = "https://github.com/mesalock-linux/serde-sgx" }
 lazy_static = { version = "*", default-features = false, features = ["spin_no_std"] }
 #kvdb = { git = "https://github.com/mesalock-linux/parity-common-sgx" }
 #kvdb-memorydb = { git = "https://github.com/mesalock-linux/parity-common-sgx" }
+
+# substrate deps
+sp-core = { default-features = false, features = ["full_crypto"], git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.27" }
 
 [patch.'https://github.com/apache/teaclave-sgx-sdk.git']
 #sgx_align_struct_attribute = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
