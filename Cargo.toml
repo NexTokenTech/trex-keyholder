@@ -1,3 +1,2 @@
 [workspace]
-
-members = ["service",]
+members = ["service"]
