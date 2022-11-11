@@ -187,9 +187,9 @@ fn init_enclave() -> SgxResult<SgxEnclave> {
 fn main() {
     // Setup logging
     env_logger::init();
-    // let config_f = std::fs::File::open("config.yml").expect("Could not open file.");
-    // let config: Config = serde_yaml::from_reader(config_f).expect("Could not read values.");
-    // debug!("Node server address: {}", config.node_ip);
+    let config_f = std::fs::File::open("config.yml").expect("Could not open file.");
+    let config: Config = serde_yaml::from_reader(config_f).expect("Could not read values.");
+    debug!("Node server address: {}", config.node_ip);
     let enclave = match init_enclave() {
         Ok(r) => {
             println!("[+] Init Enclave Successful {}!", r.geteid());

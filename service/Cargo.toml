@@ -1,7 +1,10 @@
 [package]
 name = "trex-keyholder"
 version = "1.0.0"
-authors = ["The Teaclave Authors"]
+authors = ["NexToken Tech LLC <team@trex.ink>"]
+homepage = "https://trex.ink"
+repository = "https://github.com/NexTokenTech/trex-keyholder"
+license = "Apache-2.0"
 build = "build.rs"
 edition = "2021"
 
