@@ -54,32 +54,32 @@ branch = "mesalock_sgx"
 features = ["dangerous_configuration"]
 
 [patch.'https://github.com/apache/teaclave-sgx-sdk.git']
-sgx_align_struct_attribute = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
+# sgx_align_struct_attribute = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
 sgx_alloc = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
-sgx_backtrace = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
+# sgx_backtrace = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
 sgx_backtrace_sys = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
 sgx_build_helper = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
-sgx_cov = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
+# sgx_cov = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
 sgx_crypto_helper = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
 sgx_demangle = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
 sgx_libc = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
-sgx_no_tstd = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
+# sgx_no_tstd = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
 sgx_rand = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
-sgx_rand_derive = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
+# sgx_rand_derive = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
 sgx_serialize = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
-sgx_serialize_derive = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
-sgx_serialize_derive_internals = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
+# sgx_serialize_derive = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
+# sgx_serialize_derive_internals = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
 sgx_tcrypto = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
 sgx_tcrypto_helper = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
-sgx_tdh = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
-sgx_tkey_exchange = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
+# sgx_tdh = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
+# sgx_tkey_exchange = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
 sgx_tprotected_fs = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
 sgx_trts = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
 sgx_tse = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
 sgx_tseal = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
 sgx_tstd = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
-sgx_tunittest = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
+# sgx_tunittest = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
 sgx_types = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
-#sgx_ucrypto = { path = "../../../sgx_ucrypto" }
-sgx_unwind = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
-#sgx_urts = { path = "../../../sgx_urts" }
+# sgx_ucrypto = { path = "../../../sgx_ucrypto" }
+# sgx_unwind = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
+# sgx_urts = { path = "../../../sgx_urts" }

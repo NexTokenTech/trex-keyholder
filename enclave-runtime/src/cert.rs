@@ -194,6 +194,7 @@ pub fn percent_decode(orig: String) -> String {
     ret
 }
 
+#[allow(dead_code)]
 pub fn verify_mra_cert(cert_der: &[u8]) -> Result<(), sgx_status_t> {
     // Before we reach here, Webpki already verifed the cert is properly signed
 
@@ -363,19 +364,18 @@ pub fn verify_mra_cert(cert_der: &[u8]) -> Result<(), sgx_status_t> {
         println!("Quote = {:?}", quote);
         // TODO: lack security check here
         let sgx_quote: sgx_quote_t = unsafe{ptr::read(quote.as_ptr() as *const _)};
-
+        let version = unsafe{ptr::read_unaligned(ptr::addr_of!(sgx_quote.version))};
+        let sign_type = unsafe{ptr::read_unaligned(ptr::addr_of!(sgx_quote.sign_type))};
         // Borrow of packed field is unsafe in future Rust releases
         // ATTENTION
         // DO SECURITY CHECK ON DEMAND
         // DO SECURITY CHECK ON DEMAND
         // DO SECURITY CHECK ON DEMAND
-        unsafe{
-            println!("sgx quote version = {}", sgx_quote.version);
-            println!("sgx quote signature type = {}", sgx_quote.sign_type);
-            println!("sgx quote report_data = {:02x}", sgx_quote.report_body.report_data.d.iter().format(""));
-            println!("sgx quote mr_enclave = {:02x}", sgx_quote.report_body.mr_enclave.m.iter().format(""));
-            println!("sgx quote mr_signer = {:02x}", sgx_quote.report_body.mr_signer.m.iter().format(""));
-        }
+        println!("sgx quote version = {}", version);
+        println!("sgx quote signature type = {}", sign_type);
+        println!("sgx quote report_data = {:02x}", sgx_quote.report_body.report_data.d.iter().format(""));
+        println!("sgx quote mr_enclave = {:02x}", sgx_quote.report_body.mr_enclave.m.iter().format(""));
+        println!("sgx quote mr_signer = {:02x}", sgx_quote.report_body.mr_signer.m.iter().format(""));
         println!("Anticipated public key = {:02x}", pub_k.iter().format(""));
         if sgx_quote.report_body.report_data.d.to_vec() == pub_k.to_vec() {
             println!("Mutual RA done!");

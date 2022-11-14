@@ -71,7 +71,7 @@ use sgx_crypto_helper::rsa3072::{Rsa3072KeyPair,Rsa3072PubKey};
 
 use std::sync::Arc;
 use std::net::TcpStream;
-use std::io;
+// use std::io;
 use std::ptr;
 use std::str;
 use std::untrusted::fs;
@@ -200,11 +200,12 @@ pub extern "C" fn handle_private_keys(key:*const u8,key_len: u32,timestamp:u32,e
 
     loop {
         if let Some(Reverse(v)) = min_heap.peek() {
+            // TODO: add waiting time.
             if v.timestamp <=  now_time as u32 {
-                let decrpyted_msg = get_decrypt_cipher_text(v.private_key.as_ptr() as *const u8,v.private_key.len());
+                let decrypted_msg = get_decrypt_cipher_text(v.private_key.as_ptr() as *const u8, v.private_key.len());
                 let mut rt : sgx_status_t = sgx_status_t::SGX_ERROR_UNEXPECTED;
-                let res = unsafe {
-                    ocall_output_key(&mut rt as *mut sgx_status_t,decrpyted_msg.as_ptr() as *const u8,decrpyted_msg.len() as u32);
+                unsafe {
+                    ocall_output_key(&mut rt as *mut sgx_status_t, decrypted_msg.as_ptr() as *const u8, decrypted_msg.len() as u32);
                 };
                 min_heap.pop();
             }else{
@@ -240,7 +241,7 @@ pub unsafe extern "C" fn perform_ra(
     };
 
     let payload = attn_report + "|" + &sig + "|" + &cert;
-    let (key_der, cert_der) = match cert::gen_ecc_cert(payload, &prv_k, &pub_k, &ecc_handle) {
+    let (_key_der, _cert_der) = match cert::gen_ecc_cert(payload, &prv_k, &pub_k, &ecc_handle) {
         Ok(r) => r,
         Err(e) => {
             println!("Error in gen_ecc_cert: {:?}", e);
@@ -293,6 +294,7 @@ fn get_decrypt_cipher_text(cipher_text: *const u8, cipher_len: usize) -> String{
     decrypted_string
 }
 
+#[allow(dead_code)]
 fn get_json_str(filename:&str) -> String{
     let mut keyvec: Vec<u8> = Vec::new();
 
