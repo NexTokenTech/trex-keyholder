@@ -1,13 +1,11 @@
 /bin/enclave.signed.so
 /bin/service
-/enclave-runtime/Cargo.lock
 /enclave-runtime/enclave.so
 /enclave-runtime/Enclave_t.c
 /enclave-runtime/Enclave_t.h
 /enclave-runtime/Enclave_t.o
 /lib/libenclave.a
 /lib/libEnclave_u.a
-/service/Cargo.lock
 /service/Enclave_u.c
 /service/Enclave_u.h
 /service/Enclave_u.o
