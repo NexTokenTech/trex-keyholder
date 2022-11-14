@@ -1,2 +1,8 @@
 [workspace]
 members = ["service"]
+
+[patch.'https://github.com/apache/teaclave-sgx-sdk.git']
+sgx_crypto_helper = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk" }
+sgx_types = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk" }
+sgx_ucrypto = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk" }
+sgx_urts = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk" }
