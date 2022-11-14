@@ -10,14 +10,16 @@ edition = "2021"
 [workspace]
 members = []
 
+# Library name. If you change this, please reflect those changes in the Makefile on the variable ENCLAVE_CARGO_LIB
 [lib]
-name = "enclave_runtime" # Library name. If you change this, please reflect those changes in the Makefile on the variable ENCLAVE_CARGO_LIB
+name = "enclave_runtime"
 crate-type = ["staticlib"]
 
 [features]
 default = []
 
-[target.'cfg(not(target_env = "sgx"))'.dependencies] # You can remove what you don't need, except types and tstd
+# You can remove what you don't need, except types and tstd
+[target.'cfg(not(target_env = "sgx"))'.dependencies]
 sgx_types = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 sgx_tstd = { git = "https://github.com/apache/teaclave-sgx-sdk.git", features = ["untrusted_fs","net","backtrace"]  }
 sgx_tcrypto = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
