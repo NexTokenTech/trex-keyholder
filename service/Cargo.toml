@@ -8,9 +8,6 @@ license = "Apache-2.0"
 build = "build.rs"
 edition = "2021"
 
-[workspace]
-members = []
-
 [dependencies]
 sgx_types = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 sgx_urts = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
@@ -32,10 +29,3 @@ trex-runtime = {version = "4.0.0-dev", git = "https://github.com/NexTokenTech/TR
 
 # SCS dependencies
 substrate-api-client = { git = "https://github.com/scs/substrate-api-client.git", branch = "polkadot-v0.9.30" }
-
-
-[patch.'https://github.com/apache/teaclave-sgx-sdk.git']
-sgx_crypto_helper = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk" }
-sgx_types = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk" }
-sgx_ucrypto = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk" }
-sgx_urts = { git = "https://github.com/apache/incubator-teaclave-sgx-sdk" }

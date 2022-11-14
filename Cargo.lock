@@ -2273,6 +2273,21 @@ dependencies = [
 
 [[package]]
 name = "rand_core"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7a6fdeb83b075e8266dcc8762c22776f6877a63111121f5f8c7411e5be7eed4b"
+dependencies = [
+ "rand_core 0.4.2",
+]
+
+[[package]]
+name = "rand_core"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9c33a3c44ca05fa6f1807d8e6743f3824e8509beca625669633be0acbdf509dc"
+
+[[package]]
+name = "rand_core"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90bde5296fc891b0cef12a6d03ddccc162ce7b2aff54160af9338f8d40df6d19"
@@ -2322,6 +2337,15 @@ name = "rawpointer"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "60a357793950651c4ed0f3f52338f53b2f809f32d83a07f72909fa13e4c6c1e3"
+
+[[package]]
+name = "rdrand"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5014f842b5515f60c15d3bca398477951f785883f73e7f9bc8a9d9c9bb6821c7"
+dependencies = [
+ "rand_core 0.4.2",
+]
 
 [[package]]
 name = "redox_syscall"
@@ -2603,6 +2627,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde-big-array"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b926cfbabfe8011609dda0350cb24d884955d294909ac71c0db7027366c77e3e"
+dependencies = [
+ "serde",
+ "serde_derive",
+]
+
+[[package]]
 name = "serde_derive"
 version = "1.0.147"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2635,6 +2669,50 @@ dependencies = [
  "ryu",
  "serde",
  "unsafe-libyaml",
+]
+
+[[package]]
+name = "sgx_crypto_helper"
+version = "1.1.5"
+source = "git+https://github.com/apache/incubator-teaclave-sgx-sdk#c52d76bcdc56e8e57174f9655347dce1b337b25a"
+dependencies = [
+ "itertools",
+ "libc",
+ "serde",
+ "serde-big-array",
+ "serde_derive",
+ "sgx_types 1.1.3",
+ "sgx_ucrypto",
+]
+
+[[package]]
+name = "sgx_types"
+version = "1.1.3"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.3#a6a172e652b4db4eaa17e4faa078fda8922abdd0"
+
+[[package]]
+name = "sgx_types"
+version = "1.1.5"
+source = "git+https://github.com/apache/incubator-teaclave-sgx-sdk#c52d76bcdc56e8e57174f9655347dce1b337b25a"
+
+[[package]]
+name = "sgx_ucrypto"
+version = "1.1.3"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.3#a6a172e652b4db4eaa17e4faa078fda8922abdd0"
+dependencies = [
+ "libc",
+ "rand_core 0.3.1",
+ "rdrand",
+ "sgx_types 1.1.3",
+]
+
+[[package]]
+name = "sgx_urts"
+version = "1.1.5"
+source = "git+https://github.com/apache/incubator-teaclave-sgx-sdk#c52d76bcdc56e8e57174f9655347dce1b337b25a"
+dependencies = [
+ "libc",
+ "sgx_types 1.1.5",
 ]
 
 [[package]]
@@ -3646,13 +3724,19 @@ dependencies = [
 
 [[package]]
 name = "trex-keyholder"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
+ "derive_more",
  "env_logger",
  "log",
  "serde",
+ "serde_derive",
  "serde_json",
  "serde_yaml",
+ "sgx_crypto_helper",
+ "sgx_types 1.1.5",
+ "sgx_urts",
+ "sp-core",
  "sp-runtime",
  "substrate-api-client",
  "trex-runtime",
@@ -4130,3 +4214,8 @@ dependencies = [
  "cc",
  "libc",
 ]
+
+[[patch.unused]]
+name = "sgx_ucrypto"
+version = "1.1.5"
+source = "git+https://github.com/apache/incubator-teaclave-sgx-sdk#c52d76bcdc56e8e57174f9655347dce1b337b25a"

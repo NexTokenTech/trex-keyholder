@@ -77,9 +77,9 @@ App_SRC_Files := $(shell find service/ -type f -name '*.rs') $(shell find servic
 App_Include_Paths := -I ./service -I./include -I$(SGX_SDK)/include -I$(CUSTOM_EDL_PATH)
 App_C_Flags := $(SGX_COMMON_CFLAGS) -fPIC -Wno-attributes $(App_Include_Paths)
 
-App_Rust_Path := ./service/target/release
+App_Rust_Path := ./target/release
 App_Enclave_u_Object :=service/libEnclave_u.a
-App_Name := bin/app
+App_Name := bin/trex-keyholder
 
 ######## Enclave Settings ########
 
@@ -130,7 +130,7 @@ $(App_Enclave_u_Object): service/Enclave_u.o
 	cp $(App_Enclave_u_Object) ./lib
 
 $(App_Name): $(App_Enclave_u_Object) $(App_SRC_Files)
-	@cd service && SGX_SDK=$(SGX_SDK) cargo build $(App_Rust_Flags)
+	@SGX_SDK=$(SGX_SDK) cargo build $(App_Rust_Flags)
 	@echo "Cargo  =>  $@"
 	mkdir -p bin
 	cp $(App_Rust_Path)/trex-keyholder ./bin
