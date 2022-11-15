@@ -1,6 +1,6 @@
 use derive_more::{Display, From};
 use sgx_types::sgx_status_t;
-use std::{boxed::Box, result::Result as StdResult, string::String};
+use std::{boxed::Box, result::Result as StdResult};
 
 pub type Result<T> = StdResult<T, Error>;
 

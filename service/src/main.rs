@@ -25,30 +25,21 @@ extern crate sgx_types;
 extern crate sgx_urts;
 
 use sgx_types::*;
-use sgx_urts::SgxEnclave;
 
-use std::{
-	env,
-	net::{SocketAddr, TcpListener, TcpStream},
-	os::unix::io::{AsRawFd, IntoRawFd},
-	str,
-};
-
+#[allow(unused)]
 use sgx_crypto_helper::{
 	rsa3072::{Rsa3072KeyPair, Rsa3072PubKey},
 	RsaKeyPair,
 };
-// use std::io::Write;
-use std::slice;
-
-use log::*;
+#[allow(unused)]
 use sp_runtime::generic::SignedBlock as SignedBlockG;
+#[allow(unused)]
 use substrate_api_client::{rpc::WsRpcClient, Api, AssetTipExtrinsicParams};
 
 // local modules
 use config::Config;
 use enclave::{api::*, ffi};
-use sp_core::{crypto::{AccountId32, Ss58Codec, Pair},ed25519};
+use sp_core::{crypto::{AccountId32, Ss58Codec},ed25519};
 
 fn main() {
 	// Setup logging
@@ -83,8 +74,8 @@ fn main() {
 	match result {
 		sgx_status_t::SGX_SUCCESS => {
 			let pubkey = ed25519::Public::from_raw(pubkey);
-			let accountId = AccountId32::from(*pubkey.as_array_ref());
-			println!("Enclave account {:} ", &accountId.to_ss58check());
+			let account_id = AccountId32::from(*pubkey.as_array_ref());
+			println!("Enclave account {:} ", &account_id.to_ss58check());
 			println!("ECALL success!");
 		},
 		_ => {

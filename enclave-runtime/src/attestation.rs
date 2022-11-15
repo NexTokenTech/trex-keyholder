@@ -1,24 +1,22 @@
 use crate::{cert, hex, ocall::ffi};
-use codec::Encode;
 use core::default::Default;
 use itertools::Itertools;
-use tkp_ocall_api::EnclaveAttestationOCallApi;
 
 use sgx_rand::*;
 use sgx_tcrypto::*;
 use sgx_tse::*;
 use sgx_types::*;
-use sp_core::{blake2_256, Pair};
 use std::{
 	io::{Read, Write},
 	net::TcpStream,
 	prelude::v1::*,
-	ptr, slice, str,
+	ptr, str,
 	string::String,
 	sync::Arc,
 	untrusted::fs,
 	vec::Vec,
 };
+#[allow(unused)]
 use substrate_api_client::{compose_extrinsic_offline, ExtrinsicParams};
 
 pub const DEV_HOSTNAME: &'static str = "api.trustedservices.intel.com";

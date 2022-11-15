@@ -8,9 +8,7 @@ license = "Apache-2.0"
 edition = "2021"
 
 [workspace]
-members = [
-    "ocall-api",
-]
+members = []
 
 # Library name. If you change this, please reflect those changes in the Makefile on the variable ENCLAVE_CARGO_LIB
 [lib]
@@ -53,7 +51,6 @@ derive_more = { version = "0.99.5" }
 
 log = { git = "https://github.com/integritee-network/log-sgx" }
 
-tkp-ocall-api = { path = "ocall-api", default-features = false }
 tkp-settings = { path = "../core-primitives/settings", default-features = false}
 tkp-sgx-io = { path = "../core-primitives/sgx/io", default-features = false, features = ["sgx"] }
 tkp-sgx-crypto = { path = "../core-primitives/sgx/crypto", default-features = false, features = ["sgx"] }

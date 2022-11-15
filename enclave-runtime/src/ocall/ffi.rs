@@ -32,6 +32,7 @@ extern "C" {
 		p_quote_len: *mut u32,
 	) -> sgx_status_t;
 
+	#[allow(unused)]
 	pub fn ocall_get_update_info(
 		ret_val: *mut sgx_status_t,
 		platform_blob: *const sgx_platform_info_t,

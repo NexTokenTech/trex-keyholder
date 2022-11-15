@@ -52,9 +52,6 @@ use crate::{
 };
 
 use sgx_types::*;
-use sgx_tse::*;
-use sgx_tcrypto::*;
-use sgx_rand::*;
 use std::io::{Read, Write};
 use std::prelude::v1::*;
 use std::sgxfs::SgxFile;
@@ -69,13 +66,7 @@ use std::untrusted::time::SystemTimeEx;
 use sgx_crypto_helper::RsaKeyPair;
 use sgx_crypto_helper::rsa3072::{Rsa3072KeyPair,Rsa3072PubKey};
 
-use std::sync::Arc;
-use std::net::TcpStream;
-use std::io;
-use std::ptr;
 use std::str;
-use std::untrusted::fs;
-use itertools::Itertools;
 use log::*;
 
 mod cert;
@@ -84,12 +75,11 @@ mod attestation;
 mod ocall;
 pub mod error;
 
-use tkp_settings::files::{KEYFILE,MINHEAPFILE,CERTEXPIRYDAYS,SEALED_SIGNER_SEED_FILE};
-use tkp_sgx_crypto::{ed25519, Ed25519Seal, Rsa3072Seal};
-use tkp_sgx_io as sgx_io;
+use tkp_settings::files::*;
+use tkp_sgx_crypto::{ed25519, Ed25519Seal};
 use tkp_sgx_io::StaticSealedIO;
-use crate::error::{Error, Result};
-use sp_core::crypto::{AccountId32, Ss58Codec, Pair};
+use crate::error::{Error};
+use sp_core::crypto::{Pair};
 
 
 lazy_static! {
@@ -204,7 +194,7 @@ pub extern "C" fn handle_private_keys(key:*const u8,key_len: u32,timestamp:u32,e
             if v.timestamp <=  now_time as u32 {
                 let decrpyted_msg = get_decrypt_cipher_text(v.private_key.as_ptr() as *const u8,v.private_key.len());
                 let mut rt : sgx_status_t = sgx_status_t::SGX_ERROR_UNEXPECTED;
-                let res = unsafe {
+                let _res = unsafe {
                     ffi::ocall_output_key(&mut rt as *mut sgx_status_t,decrpyted_msg.as_ptr() as *const u8,decrpyted_msg.len() as u32);
                 };
                 min_heap.pop();
@@ -260,6 +250,7 @@ fn get_decrypt_cipher_text(cipher_text: *const u8, cipher_len: usize) -> String{
     decrypted_string
 }
 
+#[allow(unused)]
 fn get_json_str(filename:&str) -> String{
     let mut keyvec: Vec<u8> = Vec::new();
 

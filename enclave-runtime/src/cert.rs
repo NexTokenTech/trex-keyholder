@@ -1,3 +1,4 @@
+#[allow(unused)]
 use crate::ocall::ffi;
 use std::prelude::v1::*;
 use std::{str, ptr};

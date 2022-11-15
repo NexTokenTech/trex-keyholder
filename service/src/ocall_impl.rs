@@ -4,12 +4,10 @@ extern crate sgx_types;
 extern crate sgx_urts;
 
 use sgx_types::*;
-use sgx_urts::SgxEnclave;
 
 use std::{
-	env,
-	net::{SocketAddr, TcpListener, TcpStream},
-	os::unix::io::{AsRawFd, IntoRawFd},
+	net::{SocketAddr, TcpStream},
+	os::unix::io::IntoRawFd,
 	slice, str,
 };
 
