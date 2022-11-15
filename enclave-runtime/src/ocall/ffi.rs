@@ -4,20 +4,24 @@ use sgx_types::{
 };
 
 extern "C" {
+	/// output decrypted key from enclave
 	pub fn ocall_output_key(
 		ret_val: *mut sgx_status_t,
 		key: *const u8,
 		key_len: u32,
 	) -> sgx_status_t;
 
+	/// init quote, used by remote attestation
 	pub fn ocall_sgx_init_quote(
 		ret_val: *mut sgx_status_t,
 		ret_ti: *mut sgx_target_info_t,
 		ret_gid: *mut sgx_epid_group_id_t,
 	) -> sgx_status_t;
 
+	/// get ias socket, used by remote attestation
 	pub fn ocall_get_ias_socket(ret_val: *mut sgx_status_t, ret_fd: *mut i32) -> sgx_status_t;
 
+	/// get quote, used by remote attestation
 	pub fn ocall_get_quote(
 		ret_val: *mut sgx_status_t,
 		p_sigrl: *const u8,
@@ -32,6 +36,7 @@ extern "C" {
 		p_quote_len: *mut u32,
 	) -> sgx_status_t;
 
+	/// get update info, used by remote attestation
 	#[allow(unused)]
 	pub fn ocall_get_update_info(
 		ret_val: *mut sgx_status_t,

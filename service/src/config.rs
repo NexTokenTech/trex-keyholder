@@ -20,12 +20,17 @@ static DEFAULT_NODE_PORT: &str = "9944";
 static DEFAULT_MU_RA_PORT: &str = "3443";
 static DEFAULT_METRICS_PORT: &str = "8787";
 static DEFAULT_UNTRUSTED_HTTP_PORT: &str = "4545";
+static DEFAULT_TRUSTED_PORT: &str = "2000";
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Config {
     pub node_ip: String,
     pub node_port: String,
     pub worker_ip: String,
+    /// Trusted worker address that will be advertised on the parentchain.
+    pub trusted_external_worker_address: Option<String>,
+    /// Port to directly communicate with the trusted tls server inside the enclave.
+    pub trusted_worker_port: String,
     /// Mutual remote attestation address that will be returned by the dedicated trusted ws rpc call.
     pub mu_ra_external_address: Option<String>,
     /// Port for mutual-remote attestation requests.
@@ -41,6 +46,8 @@ impl Config {
         node_ip: String,
         node_port: String,
         worker_ip: String,
+        trusted_external_worker_address: Option<String>,
+        trusted_worker_port: String,
         mu_ra_external_address: Option<String>,
         mu_ra_port: String,
         enable_metrics_server: bool,
@@ -50,6 +57,8 @@ impl Config {
             node_ip,
             node_port,
             worker_ip,
+            trusted_external_worker_address,
+            trusted_worker_port,
             mu_ra_external_address,
             mu_ra_port,
             enable_metrics_server,
@@ -74,6 +83,14 @@ impl Config {
         }
     }
 
+    /// Returns the trusted worker url that should be addressed by external clients.
+    pub fn trusted_worker_url_external(&self) -> String {
+        match &self.trusted_external_worker_address {
+            Some(external_address) => external_address.to_string(),
+            None => format!("wss://{}:{}", self.worker_ip, self.trusted_worker_port),
+        }
+    }
+
     pub fn try_parse_metrics_server_port(&self) -> Option<u16> {
         self.metrics_server_port.parse::<u16>().ok()
     }
@@ -81,6 +98,7 @@ impl Config {
 
 impl From<&ArgMatches<'_>> for Config {
     fn from(m: &ArgMatches<'_>) -> Self {
+        let trusted_port = m.value_of("trusted-worker-port").unwrap_or(DEFAULT_TRUSTED_PORT);
         let mu_ra_port = m.value_of("mu-ra-port").unwrap_or(DEFAULT_MU_RA_PORT);
         let is_metrics_server_enabled = m.is_present("enable-metrics");
         let metrics_server_port = m.value_of("metrics-port").unwrap_or(DEFAULT_METRICS_PORT);
@@ -89,6 +107,9 @@ impl From<&ArgMatches<'_>> for Config {
             m.value_of("node-server").unwrap_or(DEFAULT_NODE_SERVER).into(),
             m.value_of("node-port").unwrap_or(DEFAULT_NODE_PORT).into(),
             if m.is_present("ws-external") { "0.0.0.0".into() } else { "127.0.0.1".into() },
+            m.value_of("trusted-external-address")
+                .map(|url| add_port_if_necessary(url, trusted_port)),
+            trusted_port.to_string(),
             m.value_of("mu-ra-external-address")
                 .map(|url| add_port_if_necessary(url, mu_ra_port)),
             mu_ra_port.to_string(),

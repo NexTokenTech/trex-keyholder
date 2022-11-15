@@ -2,30 +2,54 @@ use crate::{cert, hex, ocall::ffi};
 use core::default::Default;
 use itertools::Itertools;
 
+use log::*;
 use sgx_rand::*;
 use sgx_tcrypto::*;
 use sgx_tse::*;
 use sgx_types::*;
+use sp_core::Pair;
 use std::{
 	io::{Read, Write},
 	net::TcpStream,
 	prelude::v1::*,
-	ptr, str,
+	ptr, slice, str,
 	string::String,
 	sync::Arc,
 	untrusted::fs,
 	vec::Vec,
 };
 #[allow(unused)]
-use substrate_api_client::{compose_extrinsic_offline, ExtrinsicParams};
+pub use substrate_api_client::{
+	compose_extrinsic_offline, ExtrinsicParams,
+	PlainTip, PlainTipExtrinsicParams, PlainTipExtrinsicParamsBuilder, SubstrateDefaultSignedExtra,
+	UncheckedExtrinsicV4,
+};
+use tkp_sgx_crypto::{ed25519, Ed25519Seal};
+use tkp_sgx_io::StaticSealedIO;
 
 pub const DEV_HOSTNAME: &'static str = "api.trustedservices.intel.com";
 pub const SIGRL_SUFFIX: &'static str = "/sgx/dev/attestation/v4/sigrl/";
 pub const REPORT_SUFFIX: &'static str = "/sgx/dev/attestation/v4/report";
 
+pub type Hash = sp_core::H256;
+pub fn hash_from_slice(hash_slize: &[u8]) -> Hash {
+	let mut g = [0; 32];
+	g.copy_from_slice(hash_slize);
+	Hash::from(&mut g)
+}
+
 #[no_mangle]
-pub unsafe extern "C" fn perform_ra(sign_type: sgx_quote_sign_type_t) -> sgx_status_t {
+pub unsafe extern "C" fn perform_ra(
+	genesis_hash: *const u8,
+	genesis_hash_size: u32,
+	nonce: *const u32,
+	w_url: *const u8,
+	w_url_size: u32,
+	unchecked_extrinsic: *mut u8,
+	unchecked_extrinsic_size: u32,
+) -> sgx_status_t {
 	// our certificate is unlinkable
+	let sign_type = sgx_quote_sign_type_t::SGX_LINKABLE_SIGNATURE;
 	// Generate Keypair
 	let ecc_handle = SgxEccHandle::new();
 	let _result = ecc_handle.open();
@@ -51,6 +75,25 @@ pub unsafe extern "C" fn perform_ra(sign_type: sgx_quote_sign_type_t) -> sgx_sta
 		},
 	};
 	let _result = ecc_handle.close();
+
+	println!("    [Enclave] Compose extrinsic");
+	let genesis_hash_slice = slice::from_raw_parts(genesis_hash, genesis_hash_size as usize);
+	//let mut nonce_slice     = slice::from_raw_parts(nonce, nonce_size as usize);
+	let url_slice = slice::from_raw_parts(w_url, w_url_size as usize);
+	let extrinsic_slice =
+		slice::from_raw_parts_mut(unchecked_extrinsic, unchecked_extrinsic_size as usize);
+	let signer = match Ed25519Seal::unseal_from_static_file() {
+		Ok(pair) => pair,
+		Err(e) => return e.into(),
+	};
+	info!("[Enclave] Restored ECC pubkey: {:?}", signer.public());
+
+	debug!("decoded nonce: {}", *nonce);
+	let genesis_hash = hash_from_slice(genesis_hash_slice);
+	debug!("decoded genesis_hash: {:?}", genesis_hash_slice);
+	debug!("worker url: {}", str::from_utf8(url_slice).unwrap());
+
+	// TODO: metadata runtime-version runtime-transaction-version construct uxt
 
 	sgx_status_t::SGX_SUCCESS
 }

@@ -32,6 +32,12 @@ args:
       help: Set the websocket port to listen for mu-ra requests
       takes_value: true
       default_value: "3443"
+  - trusted-worker-port:
+      short: P
+      long: trusted-worker-port
+      help: Set the trusted websocket port of the worker, running directly in the enclave.
+      takes_value: true
+      default_value: "2000"
   - mu-ra-external-address:
       short: M
       long: mu-ra-external-address

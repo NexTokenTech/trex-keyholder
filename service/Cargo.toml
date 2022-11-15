@@ -30,6 +30,7 @@ clap = { version = "2.33", features = ["yaml"] }
 tkp-settings = { path = "../core-primitives/settings" }
 
 # Substrate dependencies
+frame-support = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.30" }
 sp-runtime = { version = "6.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.30" }
 trex-runtime = {version = "4.0.0-dev", git = "https://github.com/NexTokenTech/TREX", branch = "main"}
 

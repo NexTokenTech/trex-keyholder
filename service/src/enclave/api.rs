@@ -6,6 +6,7 @@ use std::io::{Read, Write};
 use std::{fs::File, path::PathBuf};
 use tkp_settings::files::{ENCLAVE_FILE, ENCLAVE_TOKEN};
 
+/// init enclave
 pub fn enclave_init() -> SgxResult<SgxEnclave> {
 	const LEN: usize = 1024;
 	let mut launch_token = [0; LEN];

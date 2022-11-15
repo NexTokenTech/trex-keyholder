@@ -25,6 +25,7 @@ extern crate sgx_types;
 extern crate sgx_urts;
 
 use sgx_types::*;
+use sgx_urts::SgxEnclave;
 
 #[allow(unused)]
 use sgx_crypto_helper::{
@@ -34,7 +35,7 @@ use sgx_crypto_helper::{
 #[allow(unused)]
 use sp_runtime::generic::SignedBlock as SignedBlockG;
 #[allow(unused)]
-use substrate_api_client::{rpc::WsRpcClient, Api, AssetTipExtrinsicParams, Metadata};
+use substrate_api_client::{rpc::WsRpcClient, Api, AssetTipExtrinsicParams, Metadata, ApiClientError};
 
 use clap::{load_yaml, App};
 use std::path::Path;
@@ -42,18 +43,25 @@ use std::path::Path;
 // local modules
 use config::Config;
 use enclave::{api::*, ffi};
-use sp_core::{crypto::{AccountId32, Ss58Codec},ed25519};
+use sp_core::{crypto::{AccountId32, Ss58Codec}, ed25519, Pair};
+use sp_core::sr25519;
 use crate::enclave::error::Error;
+use frame_support::ensure;
+use tkp_settings::worker::EXTRINSIC_MAX_SIZE;
 
 fn main() {
+	// ------------------------------------------------------------------------
 	// Setup logging
 	env_logger::init();
 
+	// ------------------------------------------------------------------------
+	// load Config from config.yml
 	let yml = load_yaml!("config.yml");
 	let matches = App::from_yaml(yml).get_matches();
 	let config = Config::from(&matches);
-	println!("Node server address: {:?}", config.node_ip);
 
+	// ------------------------------------------------------------------------
+	// init enclave instance
 	let enclave = match enclave_init() {
 		Ok(r) => {
 			println!("[+] Init Enclave Successful {}!", r.geteid());
@@ -67,22 +75,59 @@ fn main() {
 
 	// ------------------------------------------------------------------------
 	// Get the public key of our TEE.
+	let tee_accountid = enclave_account(&enclave).unwrap();
+
+	let url = format!("{}:{}", config.node_ip, config.node_port);
+	let client = WsRpcClient::new(&url);
+	let api = Api::<sr25519::Pair, _, AssetTipExtrinsicParams>::new(client).unwrap();
+
+	let genesis_hash = get_genesis_hash(&config);
+
+	// ------------------------------------------------------------------------
+	// Perform a remote attestation and get an unchecked extrinsic back.
+	let nonce = get_nonce(&tee_accountid,&config).unwrap();
+	println!("{:?}",nonce);
+	set_nonce(&enclave,&nonce);
+
+	let metadata = api.metadata.clone();
+	let runtime_spec_version = api.runtime_version.spec_version;
+	let runtime_transaction_version = api.runtime_version.transaction_version;
+	println!("{:?}",runtime_spec_version);
+	println!("{:?}",runtime_transaction_version);
+
+	let trusted_url = config.trusted_worker_url_external();
+	// let uxt = if skip_ra {
+	// 	println!(
+	// 		"[!] skipping remote attestation. Registering enclave without attestation report."
+	// 	);
+	// 	enclave.mock_register_xt(node_api.genesis_hash, nonce, &trusted_url).unwrap()
+	// } else {
+	// 	enclave
+	// 		.perform_ra(genesis_hash, nonce, trusted_url.as_bytes().to_vec())
+	// 		.unwrap()
+	// };
+
 	let mut retval = sgx_status_t::SGX_SUCCESS;
-	let mut pubkey = [0u8; 32 as usize];
+
+	let unchecked_extrinsic_size = EXTRINSIC_MAX_SIZE;
+	let mut unchecked_extrinsic: Vec<u8> = vec![0u8; unchecked_extrinsic_size as usize];
 
 	let result = unsafe {
-		ffi::get_ecc_signing_pubkey(
+		ffi::perform_ra(
 			enclave.geteid(),
 			&mut retval,
-			pubkey.as_mut_ptr(),
-			pubkey.len() as u32,
+			genesis_hash.as_ptr(),
+			genesis_hash.len() as u32,
+			&nonce,
+			trusted_url.as_ptr(),
+			trusted_url.len() as u32,
+			unchecked_extrinsic.as_mut_ptr(),
+			unchecked_extrinsic.len() as u32,
 		)
 	};
+
 	match result {
 		sgx_status_t::SGX_SUCCESS => {
-			let pubkey = ed25519::Public::from_raw(pubkey);
-			let account_id = AccountId32::from(*pubkey.as_array_ref());
-			println!("Enclave account {:} ", &account_id.to_ss58check());
 			println!("ECALL success!");
 		},
 		_ => {
@@ -171,11 +216,57 @@ fn main() {
 
 	enclave.destroy();
 }
-pub fn check_files() {
-	let files = vec!["config.yml"];
-	for f in files.iter() {
-		assert!(Path::new(f).exists(), "File doesn't exist: {}", f);
+
+fn set_nonce(enclave: &SgxEnclave,nonce:&u32){
+	let mut retval = sgx_status_t::SGX_SUCCESS;
+	let result = unsafe { ffi::set_nonce(enclave.geteid(),&mut retval,nonce) };
+	match result {
+		sgx_status_t::SGX_SUCCESS => {
+			println!("ECALL Set Nonce Success!");
+		},
+		_ => {
+			println!("[-] ECALL Set Nonce Enclave Failed {}!", result.as_str());
+			return
+		},
 	}
 }
+
+fn get_nonce(who: &AccountId32, config:&Config) -> Result<u32,ApiClientError> {
+	let url = format!("{}:{}", config.node_ip, config.node_port);
+	let client = WsRpcClient::new(&url);
+	let api = Api::<sr25519::Pair, _, AssetTipExtrinsicParams>::new(client).unwrap();
+	Ok(api.get_account_info(who)?.map_or_else(|| 0, |info| info.nonce))
+}
+
+fn get_genesis_hash(config:&Config) -> Vec<u8>{
+	let url = format!("{}:{}", config.node_ip, config.node_port);
+	let client = WsRpcClient::new(&url);
+	let api = Api::<sr25519::Pair, _, AssetTipExtrinsicParams>::new(client).unwrap();
+	let genesis_hash = Some(api.get_genesis_hash().expect("Failed to get genesis hash"));
+	genesis_hash.unwrap().as_bytes().to_vec()
+}
+
+/// Get the public signing key of the TEE.
+fn enclave_account(enclave: &SgxEnclave) -> Result<AccountId32,Error> {
+	let mut retval = sgx_status_t::SGX_SUCCESS;
+	let mut pubkey = [0u8; 32 as usize];
+
+	let result = unsafe {
+		ffi::get_ecc_signing_pubkey(
+			enclave.geteid(),
+			&mut retval,
+			pubkey.as_mut_ptr(),
+			pubkey.len() as u32,
+		)
+	};
+
+	ensure!(result == sgx_status_t::SGX_SUCCESS, Error::Sgx(result));
+	ensure!(retval == sgx_status_t::SGX_SUCCESS, Error::Sgx(retval));
+
+	let pubkey = ed25519::Public::from_raw(pubkey);
+	let tee_account_id = AccountId32::from(*pubkey.as_array_ref());
+	Ok(tee_account_id)
+}
+
 
 

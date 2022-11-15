@@ -80,6 +80,7 @@ use tkp_sgx_crypto::{ed25519, Ed25519Seal};
 use tkp_sgx_io::StaticSealedIO;
 use crate::error::{Error};
 use sp_core::crypto::{Pair};
+use tkp_nonce_cache::{MutateNonce, Nonce, GLOBAL_NONCE_CACHE};
 
 
 lazy_static! {
@@ -206,6 +207,51 @@ pub extern "C" fn handle_private_keys(key:*const u8,key_len: u32,timestamp:u32,e
         }
     }
     // TODO: min_heap Persistence
+    sgx_status_t::SGX_SUCCESS
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn set_nonce(nonce: *const u32) -> sgx_status_t {
+    log::info!("[Ecall Set Nonce] Setting the nonce of the enclave to: {}", *nonce);
+
+    let mut nonce_lock = match GLOBAL_NONCE_CACHE.load_for_mutation() {
+        Ok(l) => l,
+        Err(e) => {
+            error!("Failed to set nonce in enclave: {:?}", e);
+            return sgx_status_t::SGX_ERROR_UNEXPECTED
+        },
+    };
+
+    *nonce_lock = Nonce(*nonce);
+
+    sgx_status_t::SGX_SUCCESS
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn set_node_metadata(
+    node_metadata: *const u8,
+    node_metadata_size: u32,
+) -> sgx_status_t {
+    // let mut node_metadata_slice = slice::from_raw_parts(node_metadata, node_metadata_size as usize);
+    // let metadata = match NodeMetadata::decode(&mut node_metadata_slice).map_err(Error::Codec) {
+    //     Err(e) => {
+    //         error!("Failed to decode node metadata: {:?}", e);
+    //         return sgx_status_t::SGX_ERROR_UNEXPECTED
+    //     },
+    //     Ok(m) => m,
+    // };
+    //
+    // let node_metadata_repository = match GLOBAL_NODE_METADATA_REPOSITORY_COMPONENT.get() {
+    //     Ok(r) => r,
+    //     Err(e) => {
+    //         error!("Component get failure: {:?}", e);
+    //         return sgx_status_t::SGX_ERROR_UNEXPECTED
+    //     },
+    // };
+    //
+    // node_metadata_repository.set_metadata(metadata);
+    // info!("Successfully set the node meta data");
+
     sgx_status_t::SGX_SUCCESS
 }
 
