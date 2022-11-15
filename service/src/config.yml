@@ -6,15 +6,45 @@ authors: "NexToken Technology LLC <team@trex.ink>"
 # AppSettings can be defined as a list and are **not** ascii case sensitive
 settings:
   - ColoredHelp
-  - SubcommandRequired
 
 # All subcommands must be listed in the 'subcommand:' object, where the key to
 # the list is the name of the subcommand, and all settings for that command are
 # part of a Hash
 args:
-  - node-server: ws://127.0.0.1
-  - node-port: 9944
+  - node-server:
+      short: u
+      long: node-url
+      help: Set the node server protocol and IP address
+      takes_value: true
+      default_value: "ws://127.0.0.1"
+  - node-port:
+      short: p
+      long: node-port
+      help: Set the websocket port to listen for substrate events
+      takes_value: true
+      default_value: "9944"
   - ws-external:
-  - mu-ra-port: 3443
-  - enable-metrics: true
-  - metrics-port: 8787
+      long: ws-external
+      help: Set this flag in case the worker should listen to external requests.
+  - mu-ra-port:
+      short: r
+      long: mu-ra-port
+      help: Set the websocket port to listen for mu-ra requests
+      takes_value: true
+      default_value: "3443"
+  - mu-ra-external-address:
+      short: M
+      long: mu-ra-external-address
+      help: Set the mutual remote attestation worker address to be retrieved by a trusted rpc call. If no port is given, the same as in `mu-ra-port` will be used.
+      takes_value: true
+      required: false
+  - enable-metrics:
+      long: enable-metrics
+      help: Enable the metrics HTTP server to serve metrics
+  - metrics-port:
+      short: i
+      long: metrics-port
+      help: Set the port on which the metrics are served.
+      takes_value: true
+      default_value: "8787"
+      required: false

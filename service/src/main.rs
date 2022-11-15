@@ -34,19 +34,26 @@ use sgx_crypto_helper::{
 #[allow(unused)]
 use sp_runtime::generic::SignedBlock as SignedBlockG;
 #[allow(unused)]
-use substrate_api_client::{rpc::WsRpcClient, Api, AssetTipExtrinsicParams};
+use substrate_api_client::{rpc::WsRpcClient, Api, AssetTipExtrinsicParams, Metadata};
+
+use clap::{load_yaml, App};
+use std::path::Path;
 
 // local modules
 use config::Config;
 use enclave::{api::*, ffi};
 use sp_core::{crypto::{AccountId32, Ss58Codec},ed25519};
+use crate::enclave::error::Error;
 
 fn main() {
 	// Setup logging
 	env_logger::init();
-	// let config_f = std::fs::File::open("config.yml").expect("Could not open file.");
-	// let config: Config = serde_yaml::from_reader(config_f).expect("Could not read values.");
-	// debug!("Node server address: {}", config.node_ip);
+
+	let yml = load_yaml!("config.yml");
+	let matches = App::from_yaml(yml).get_matches();
+	let config = Config::from(&matches);
+	println!("Node server address: {:?}", config.node_ip);
+
 	let enclave = match enclave_init() {
 		Ok(r) => {
 			println!("[+] Init Enclave Successful {}!", r.geteid());
@@ -164,4 +171,11 @@ fn main() {
 
 	enclave.destroy();
 }
+pub fn check_files() {
+	let files = vec!["config.yml"];
+	for f in files.iter() {
+		assert!(Path::new(f).exists(), "File doesn't exist: {}", f);
+	}
+}
+
 

@@ -12,39 +12,39 @@
     See the License for the specific language governing permissions and
     limitations under the License.
 */
-
+use clap::ArgMatches;
 use serde::{Deserialize, Serialize};
 
 static DEFAULT_NODE_SERVER: &str = "ws://127.0.0.1";
-static DEFAULT_NODE_PORT: u16 = 9944;
-static DEFAULT_MU_RA_PORT: u16 = 3443;
-static DEFAULT_METRICS_PORT: u16 = 8787;
-static DEFAULT_UNTRUSTED_HTTP_PORT: u16 = 4545;
+static DEFAULT_NODE_PORT: &str = "9944";
+static DEFAULT_MU_RA_PORT: &str = "3443";
+static DEFAULT_METRICS_PORT: &str = "8787";
+static DEFAULT_UNTRUSTED_HTTP_PORT: &str = "4545";
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Config {
     pub node_ip: String,
-    pub node_port: u16,
+    pub node_port: String,
     pub worker_ip: String,
     /// Mutual remote attestation address that will be returned by the dedicated trusted ws rpc call.
     pub mu_ra_external_address: Option<String>,
     /// Port for mutual-remote attestation requests.
-    pub mu_ra_port: u16,
+    pub mu_ra_port: String,
     /// Enable the metrics server
     pub enable_metrics_server: bool,
     /// Port for the metrics server
-    pub metrics_server_port: u16,
+    pub metrics_server_port: String,
 }
 
 impl Config {
     pub fn new(
         node_ip: String,
-        node_port: u16,
+        node_port: String,
         worker_ip: String,
         mu_ra_external_address: Option<String>,
-        mu_ra_port: u16,
+        mu_ra_port: String,
         enable_metrics_server: bool,
-        metrics_server_port: u16,
+        metrics_server_port: String,
     ) -> Self {
         Self {
             node_ip,
@@ -74,8 +74,27 @@ impl Config {
         }
     }
 
-    pub fn try_parse_metrics_server_port(&self) -> u16 {
-        self.metrics_server_port
+    pub fn try_parse_metrics_server_port(&self) -> Option<u16> {
+        self.metrics_server_port.parse::<u16>().ok()
+    }
+}
+
+impl From<&ArgMatches<'_>> for Config {
+    fn from(m: &ArgMatches<'_>) -> Self {
+        let mu_ra_port = m.value_of("mu-ra-port").unwrap_or(DEFAULT_MU_RA_PORT);
+        let is_metrics_server_enabled = m.is_present("enable-metrics");
+        let metrics_server_port = m.value_of("metrics-port").unwrap_or(DEFAULT_METRICS_PORT);
+
+        Self::new(
+            m.value_of("node-server").unwrap_or(DEFAULT_NODE_SERVER).into(),
+            m.value_of("node-port").unwrap_or(DEFAULT_NODE_PORT).into(),
+            if m.is_present("ws-external") { "0.0.0.0".into() } else { "127.0.0.1".into() },
+            m.value_of("mu-ra-external-address")
+                .map(|url| add_port_if_necessary(url, mu_ra_port)),
+            mu_ra_port.to_string(),
+            is_metrics_server_enabled,
+            metrics_server_port.to_string(),
+        )
     }
 }
 
