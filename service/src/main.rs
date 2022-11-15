@@ -41,13 +41,14 @@ use sgx_crypto_helper::{
 // use std::io::Write;
 use std::slice;
 
-use log::debug;
+use log::*;
 use sp_runtime::generic::SignedBlock as SignedBlockG;
 use substrate_api_client::{rpc::WsRpcClient, Api, AssetTipExtrinsicParams};
 
 // local modules
 use config::Config;
-use enclave::{api::enclave_init, ffi};
+use enclave::{api::*, ffi};
+use sp_core::{crypto::{AccountId32, Ss58Codec, Pair},ed25519};
 
 fn main() {
 	// Setup logging
@@ -66,11 +67,24 @@ fn main() {
 		},
 	};
 
-	let mut sign_type = sgx_quote_sign_type_t::SGX_LINKABLE_SIGNATURE;
+	// ------------------------------------------------------------------------
+	// Get the public key of our TEE.
 	let mut retval = sgx_status_t::SGX_SUCCESS;
-	let result = unsafe { ffi::perform_ra(enclave.geteid(), &mut retval, sign_type) };
+	let mut pubkey = [0u8; 32 as usize];
+
+	let result = unsafe {
+		ffi::get_ecc_signing_pubkey(
+			enclave.geteid(),
+			&mut retval,
+			pubkey.as_mut_ptr(),
+			pubkey.len() as u32,
+		)
+	};
 	match result {
 		sgx_status_t::SGX_SUCCESS => {
+			let pubkey = ed25519::Public::from_raw(pubkey);
+			let accountId = AccountId32::from(*pubkey.as_array_ref());
+			println!("Enclave account {:} ", &accountId.to_ss58check());
 			println!("ECALL success!");
 		},
 		_ => {
@@ -78,6 +92,19 @@ fn main() {
 			return
 		},
 	}
+
+	// let mut sign_type = sgx_quote_sign_type_t::SGX_LINKABLE_SIGNATURE;
+	// let mut retval = sgx_status_t::SGX_SUCCESS;
+	// let result = unsafe { ffi::perform_ra(enclave.geteid(), &mut retval, sign_type) };
+	// match result {
+	// 	sgx_status_t::SGX_SUCCESS => {
+	// 		println!("ECALL success!");
+	// 	},
+	// 	_ => {
+	// 		println!("[-] ECALL Enclave Failed {}!", result.as_str());
+	// 		return
+	// 	},
+	// }
 
 	// let pubkey_size = 8192;
 	// let mut pubkey = vec![0u8; pubkey_size as usize];
@@ -146,3 +173,4 @@ fn main() {
 
 	enclave.destroy();
 }
+

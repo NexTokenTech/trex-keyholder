@@ -49,14 +49,17 @@ serde_json = { git = "https://github.com/mesalock-linux/serde-json-sgx" }
 serde = { git = "https://github.com/mesalock-linux/serde-sgx" }
 serde_derive = { git = "https://github.com/mesalock-linux/serde-sgx" }
 lazy_static = { version = "*", default-features = false, features = ["spin_no_std"] }
+derive_more = { version = "0.99.5" }
 
 log = { git = "https://github.com/integritee-network/log-sgx" }
 
 tkp-ocall-api = { path = "ocall-api", default-features = false }
 tkp-settings = { path = "../core-primitives/settings", default-features = false}
+tkp-sgx-io = { path = "../core-primitives/sgx/io", default-features = false, features = ["sgx"] }
+tkp-sgx-crypto = { path = "../core-primitives/sgx/crypto", default-features = false, features = ["sgx"] }
 
 frame-support = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.27" }
-sp-core = { default-features = false, features = ["full_crypto"], git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.27" }
+sp-core = { default-features = false,features = ["full_crypto"], git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.27" }
 substrate-api-client = { default-features = false, git = "https://github.com/scs/substrate-api-client.git", branch = "polkadot-v0.9.27" }
 
 

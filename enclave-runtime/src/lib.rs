@@ -14,11 +14,11 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License..
-// #![feature(structural_match)]
-// #![feature(rustc_attrs)]
-// #![feature(core_intrinsics)]
-// #![feature(derive_eq)]
-// #![feature(trait_alias)]
+#![feature(structural_match)]
+#![feature(rustc_attrs)]
+#![feature(core_intrinsics)]
+#![feature(derive_eq)]
+#![feature(trait_alias)]
 #![crate_name = "enclave_runtime"]
 #![crate_type = "staticlib"]
 #![cfg_attr(not(target_env = "sgx"), no_std)]
@@ -53,7 +53,6 @@ use crate::{
 
 use sgx_types::*;
 use sgx_tse::*;
-//use sgx_trts::trts::{rsgx_raw_is_outside_enclave, rsgx_lfence};
 use sgx_tcrypto::*;
 use sgx_rand::*;
 use std::io::{Read, Write};
@@ -77,13 +76,21 @@ use std::ptr;
 use std::str;
 use std::untrusted::fs;
 use itertools::Itertools;
+use log::*;
 
 mod cert;
 mod hex;
 mod attestation;
 mod ocall;
+pub mod error;
 
-use tkp_settings::files::{KEYFILE,MINHEAPFILE,CERTEXPIRYDAYS};
+use tkp_settings::files::{KEYFILE,MINHEAPFILE,CERTEXPIRYDAYS,SEALED_SIGNER_SEED_FILE};
+use tkp_sgx_crypto::{ed25519, Ed25519Seal, Rsa3072Seal};
+use tkp_sgx_io as sgx_io;
+use tkp_sgx_io::StaticSealedIO;
+use crate::error::{Error, Result};
+use sp_core::crypto::{AccountId32, Ss58Codec, Pair};
+
 
 lazy_static! {
     static ref MIN_BINARY_HEAP: Mutex<BinaryHeap<Reverse<Ext>>> = Mutex::new(BinaryHeap::new());
@@ -141,6 +148,24 @@ pub unsafe extern "C" fn get_rsa_encryption_pubkey(
     left.clone_from_slice(&data);
     // fill the right side with whitespace
     right.iter_mut().for_each(|x| *x = 0x20);
+
+    sgx_status_t::SGX_SUCCESS
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn get_ecc_signing_pubkey(pubkey: *mut u8, pubkey_size: u32) -> sgx_status_t {
+    if let Err(e) = ed25519::create_sealed_if_absent().map_err(Error::Crypto) {
+        return e.into()
+    }
+
+    let signer = match Ed25519Seal::unseal_from_static_file().map_err(Error::Crypto) {
+        Ok(pair) => pair,
+        Err(e) => return e.into(),
+    };
+    debug!("Restored ECC pubkey: {:?}", signer.public());
+
+    let pubkey_slice = slice::from_raw_parts_mut(pubkey, pubkey_size as usize);
+    pubkey_slice.clone_from_slice(&signer.public());
 
     sgx_status_t::SGX_SUCCESS
 }
