@@ -27,6 +27,9 @@ extern crate sgx_urts;
 use sgx_types::*;
 use sgx_urts::SgxEnclave;
 
+use clap::{load_yaml, App};
+use frame_system::EventRecord;
+use log::debug;
 #[allow(unused)]
 use sgx_crypto_helper::{
 	rsa3072::{Rsa3072KeyPair, Rsa3072PubKey},
@@ -34,19 +37,24 @@ use sgx_crypto_helper::{
 };
 #[allow(unused)]
 use sp_runtime::generic::SignedBlock as SignedBlockG;
+use std::{path::Path, sync::mpsc::channel, thread, time::Duration};
 #[allow(unused)]
-use substrate_api_client::{rpc::WsRpcClient, Api, AssetTipExtrinsicParams, Metadata, ApiClientError};
+use substrate_api_client::{
+	rpc::WsRpcClient, utils::FromHexString, Api, ApiClientError, AssetTipExtrinsicParams, Metadata,
+};
 
-use clap::{load_yaml, App};
-use std::path::Path;
-
+// trex modules
+use pallet_trex::Event as TrexEvent;
+use trex_runtime::RuntimeEvent;
 // local modules
+use crate::enclave::error::Error;
 use config::Config;
 use enclave::{api::*, ffi};
-use sp_core::{crypto::{AccountId32, Ss58Codec}, ed25519, Pair};
-use sp_core::sr25519;
-use crate::enclave::error::Error;
 use frame_support::ensure;
+use sp_core::{
+	crypto::{AccountId32, Ss58Codec},
+	ed25519, sr25519, Decode, Pair, H256 as Hash,
+};
 use tkp_settings::worker::EXTRINSIC_MAX_SIZE;
 
 fn main() {
@@ -85,15 +93,15 @@ fn main() {
 
 	// ------------------------------------------------------------------------
 	// Perform a remote attestation and get an unchecked extrinsic back.
-	let nonce = get_nonce(&tee_accountid,&config).unwrap();
-	println!("{:?}",nonce);
-	set_nonce(&enclave,&nonce);
+	let nonce = get_nonce(&tee_accountid, &config).unwrap();
+	println!("{:?}", nonce);
+	set_nonce(&enclave, &nonce);
 
 	let metadata = api.metadata.clone();
 	let runtime_spec_version = api.runtime_version.spec_version;
 	let runtime_transaction_version = api.runtime_version.transaction_version;
-	println!("{:?}",runtime_spec_version);
-	println!("{:?}",runtime_transaction_version);
+	println!("{:?}", runtime_spec_version);
+	println!("{:?}", runtime_transaction_version);
 
 	let trusted_url = config.trusted_worker_url_external();
 	// let uxt = if skip_ra {
@@ -213,13 +221,60 @@ fn main() {
 	//     };
 	//     println!("{:?}",result);
 	// }
+	// TODO: Get account ID of current key-holder node.
+	// TODO: Send remote attestation as ext to the trex network.
+	// Spawn a thread to listen to the TREX data event.
+	let event_url = config.node_ip.clone();
+	let mut handlers = Vec::new();
+	handlers.push(thread::spawn(move || {
+		// Listen to TREXDataSent events.
+		let client = WsRpcClient::new(&event_url);
+		let api = Api::<sr25519::Pair, _, AssetTipExtrinsicParams>::new(client).unwrap();
+		println!("Subscribe to TREX events");
+		let (events_in, events_out) = channel();
+		api.subscribe_events(events_in).unwrap();
+		loop {
+			let event_str = events_out.recv().unwrap();
+			let _unhex = Vec::from_hex(event_str).unwrap();
+			let mut _er_enc = _unhex.as_slice();
+			let events = Vec::<EventRecord<RuntimeEvent, Hash>>::decode(&mut _er_enc).unwrap();
+			// match event with trex event
+			for event in &events {
+				debug!("decoded: {:?} {:?}", event.phase, event.event);
+				match &event.event {
+					// match to trex events.
+					RuntimeEvent::Trex(te) => {
+						debug!(">>>>>>>>>> TREX event: {:?}", te);
+						// match trex data sent event.
+						match &te {
+							TrexEvent::TREXDataSent(id, byte_data) => {
+								// TODO: deserialize TREX struct data and check key pieces.
+								todo!();
+							},
+							_ => {
+								debug!("ignoring unsupported TREX event");
+							},
+						}
+					},
+					_ => debug!("ignoring unsupported module event: {:?}", event.event),
+				}
+			}
+			// wait 100 ms for next iteration
+			thread::sleep(Duration::from_millis(100));
+		}
+	}));
+	// TODO: check the enclave and release expired key pieces.
+	// join threads.
+	for handler in handlers {
+		handler.join().expect("The thread being joined has panicked");
+	}
 
 	enclave.destroy();
 }
 
-fn set_nonce(enclave: &SgxEnclave,nonce:&u32){
+fn set_nonce(enclave: &SgxEnclave, nonce: &u32) {
 	let mut retval = sgx_status_t::SGX_SUCCESS;
-	let result = unsafe { ffi::set_nonce(enclave.geteid(),&mut retval,nonce) };
+	let result = unsafe { ffi::set_nonce(enclave.geteid(), &mut retval, nonce) };
 	match result {
 		sgx_status_t::SGX_SUCCESS => {
 			println!("ECALL Set Nonce Success!");
@@ -231,14 +286,14 @@ fn set_nonce(enclave: &SgxEnclave,nonce:&u32){
 	}
 }
 
-fn get_nonce(who: &AccountId32, config:&Config) -> Result<u32,ApiClientError> {
+fn get_nonce(who: &AccountId32, config: &Config) -> Result<u32, ApiClientError> {
 	let url = format!("{}:{}", config.node_ip, config.node_port);
 	let client = WsRpcClient::new(&url);
 	let api = Api::<sr25519::Pair, _, AssetTipExtrinsicParams>::new(client).unwrap();
 	Ok(api.get_account_info(who)?.map_or_else(|| 0, |info| info.nonce))
 }
 
-fn get_genesis_hash(config:&Config) -> Vec<u8>{
+fn get_genesis_hash(config: &Config) -> Vec<u8> {
 	let url = format!("{}:{}", config.node_ip, config.node_port);
 	let client = WsRpcClient::new(&url);
 	let api = Api::<sr25519::Pair, _, AssetTipExtrinsicParams>::new(client).unwrap();
@@ -247,7 +302,7 @@ fn get_genesis_hash(config:&Config) -> Vec<u8>{
 }
 
 /// Get the public signing key of the TEE.
-fn enclave_account(enclave: &SgxEnclave) -> Result<AccountId32,Error> {
+fn enclave_account(enclave: &SgxEnclave) -> Result<AccountId32, Error> {
 	let mut retval = sgx_status_t::SGX_SUCCESS;
 	let mut pubkey = [0u8; 32 as usize];
 
@@ -267,6 +322,3 @@ fn enclave_account(enclave: &SgxEnclave) -> Result<AccountId32,Error> {
 	let tee_account_id = AccountId32::from(*pubkey.as_array_ref());
 	Ok(tee_account_id)
 }
-
-
-
