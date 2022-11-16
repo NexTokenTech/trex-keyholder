@@ -14,7 +14,7 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License..
-
+#![cfg_attr(debug_assertions, allow(dead_code, unused_imports))]
 mod config;
 mod enclave;
 mod ocall_impl;
@@ -28,18 +28,15 @@ extern crate sgx_urts;
 use sgx_types::*;
 use sgx_urts::SgxEnclave;
 
-use clap::{load_yaml, App};
 use frame_system::EventRecord;
 use log::debug;
-#[allow(unused)]
 use sgx_crypto_helper::{
 	rsa3072::{Rsa3072KeyPair, Rsa3072PubKey},
 	RsaKeyPair,
 };
-#[allow(unused)]
 use sp_runtime::generic::SignedBlock as SignedBlockG;
-use std::{path::Path, sync::mpsc::channel, thread, time::Duration};
-#[allow(unused)]
+use std::{sync::mpsc::channel, thread, time::Duration};
+use std::path::PathBuf;
 use substrate_api_client::{
 	rpc::WsRpcClient, utils::FromHexString, Api, ApiClientError, AssetTipExtrinsicParams,
 	Header as HeaderTrait, Metadata, XtStatus,
@@ -50,28 +47,35 @@ use pallet_trex::Event as TrexEvent;
 use trex_runtime::RuntimeEvent;
 // local modules
 use crate::enclave::error::Error;
-use codec::Encode;
 use config::Config;
 use enclave::{api::*, ffi};
 use frame_support::ensure;
-use sp_core::{
-	crypto::AccountId32,
-	ed25519, sr25519, Decode, H256 as Hash,
-};
+use sp_core::{crypto::AccountId32, ed25519, sr25519, Decode, H256 as Hash, Encode};
 use tkp_settings::worker::EXTRINSIC_MAX_SIZE;
-use utils::node_metadata::*;
+use utils::node_metadata::NodeMetadata;
+
+use clap::Parser;
+
+/// Arguments for the Key-holding services.
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+	/// Path of config YAML file.
+	#[arg(short, long, default_value_t=("config.yml".to_string()))]
+	config: String,
+}
 
 fn main() {
 	// ------------------------------------------------------------------------
 	// Setup logging
 	env_logger::init();
-
 	// ------------------------------------------------------------------------
 	// load Config from config.yml
-	let yml = load_yaml!("config.yml");
-	let matches = App::from_yaml(yml).get_matches();
-	let config = Config::from(&matches);
-
+	let args = Args::parse();
+	let config_path = PathBuf::from(args.config);
+	let config_f = std::fs::File::open(config_path).expect("Could not open file.");
+	let config: Config = serde_yaml::from_reader(config_f).expect("Could not read values.");
+	debug!("Loaded Config from YAML: {:#?}", config);
 	// ------------------------------------------------------------------------
 	// init enclave instance
 	let enclave = match enclave_init() {
@@ -87,9 +91,9 @@ fn main() {
 
 	// ------------------------------------------------------------------------
 	// Get the public key of our TEE.
-	let tee_accountid = enclave_account(&enclave).unwrap();
+	let tee_account_id = enclave_account(&enclave).unwrap();
 
-	let url = format!("{}:{}", config.node_ip, config.node_port);
+	let url = config.node_url();
 	let client = WsRpcClient::new(&url);
 	let api = Api::<sr25519::Pair, _, AssetTipExtrinsicParams>::new(client).unwrap();
 
@@ -97,7 +101,7 @@ fn main() {
 
 	// ------------------------------------------------------------------------
 	// Perform a remote attestation and get an unchecked extrinsic back.
-	let nonce = get_nonce(&tee_accountid, &config).unwrap();
+	let nonce = get_nonce(&tee_account_id, &config).unwrap();
 	set_nonce(&enclave, &nonce);
 
 	let metadata = api.metadata.clone();
@@ -109,7 +113,7 @@ fn main() {
 		NodeMetadata::new(metadata, runtime_spec_version, runtime_transaction_version).encode(),
 	);
 
-	let trusted_url = config.trusted_worker_url_external();
+	let trusted_url = config.mu_ra_url();
 	let uxt = perform_ra(&enclave, genesis_hash, nonce, trusted_url.as_bytes().to_vec()).unwrap();
 
 	let mut xthex = hex::encode(uxt);
@@ -124,7 +128,7 @@ fn main() {
 	// TODO: Get account ID of current key-holder node.
 	// TODO: Send remote attestation as ext to the trex network.
 	// Spawn a thread to listen to the TREX data event.
-	let event_url = config.node_ip.clone();
+	let event_url = url.clone();
 	let mut handlers = Vec::new();
 	handlers.push(thread::spawn(move || {
 		// Listen to TREXDataSent events.
@@ -147,7 +151,7 @@ fn main() {
 						debug!(">>>>>>>>>> TREX event: {:?}", te);
 						// match trex data sent event.
 						match &te {
-							TrexEvent::TREXDataSent(id, byte_data) => {
+							TrexEvent::TREXDataSent(_id, _byte_data) => {
 								// TODO: deserialize TREX struct data and check key pieces.
 								todo!();
 							},

@@ -80,7 +80,7 @@ pub unsafe extern "C" fn perform_ra(
 	};
 	let _result = ecc_handle.close();
 
-	debug!("    [Enclave] Compose extrinsic");
+	debug!("[Enclave] Compose extrinsic");
 	let genesis_hash_slice = slice::from_raw_parts(genesis_hash, genesis_hash_size as usize);
 	//let mut nonce_slice     = slice::from_raw_parts(nonce, nonce_size as usize);
 	let url_slice = slice::from_raw_parts(w_url, w_url_size as usize);
@@ -144,7 +144,7 @@ pub unsafe extern "C" fn perform_ra(
 
 	let xt_encoded = xt.encode();
 	let xt_hash = blake2_256(&xt_encoded);
-	debug!("    [Enclave] Encoded extrinsic ( len = {} B), hash {:?}", xt_encoded.len(), xt_hash);
+	debug!("[Enclave] Encoded extrinsic ( len = {} B), hash {:?}", xt_encoded.len(), xt_hash);
 
 	match write_slice_and_whitespace_pad(extrinsic_slice, xt_encoded) {
 		Ok(_) => {

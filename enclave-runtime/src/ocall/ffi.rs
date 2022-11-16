@@ -4,7 +4,7 @@ use sgx_types::{
 };
 
 extern "C" {
-	/// output decrypted key from enclave
+	/// output decrypted key piece from enclave
 	pub fn ocall_output_key(
 		ret_val: *mut sgx_status_t,
 		key: *const u8,
