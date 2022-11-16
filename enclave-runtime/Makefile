@@ -17,6 +17,7 @@
 Rust_Enclave_Name := libenclave.a
 Rust_Enclave_Files := $(wildcard src/*.rs)
 Rust_Target_Path := $(CURDIR)/../../../xargo
+RUSTFLAGS :="-C target-feature=+avx2"
 
 ifeq ($(MITIGATION-CVE-2020-0551), LOAD)
 export MITIGATION_CVE_2020_0551=LOAD
@@ -33,6 +34,6 @@ ifeq ($(XARGO_SGX), 1)
 	RUST_TARGET_PATH=$(Rust_Target_Path) xargo build --target x86_64-unknown-linux-sgx --release
 	cp ./target/x86_64-unknown-linux-sgx/release/libenclave_runtime.a ../lib/libenclave.a
 else
-	cargo build --release
+	RUSTFLAGS=$(RUSTFLAGS)  cargo build --release
 	cp ./target/release/libenclave_runtime.a ../lib/libenclave.a
 endif

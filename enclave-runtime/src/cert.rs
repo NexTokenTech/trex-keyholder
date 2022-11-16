@@ -1,3 +1,5 @@
+#[allow(unused)]
+use crate::ocall::ffi;
 use std::prelude::v1::*;
 use std::{str, ptr};
 use std::time::*;
@@ -24,15 +26,6 @@ use chrono::Duration;
 use chrono::TimeZone;
 use chrono::Utc as TzUtc;
 use itertools::Itertools;
-
-extern "C" {
-    #[allow(dead_code)]
-    pub fn ocall_get_update_info (ret_val: *mut sgx_status_t,
-                                  platformBlob: * const sgx_platform_info_t,
-                                  enclaveTrusted: i32,
-                                  update_info: * mut sgx_update_info_bit_t) -> sgx_status_t;
-}
-
 
 type SignatureAlgorithms = &'static [&'static webpki::SignatureAlgorithm];
 static SUPPORTED_SIG_ALGS: SignatureAlgorithms = &[
@@ -326,7 +319,7 @@ pub fn verify_mra_cert(cert_der: &[u8]) -> Result<(), sgx_status_t> {
                     // let mut update_info = sgx_update_info_bit_t::default();
                     // let mut rt : sgx_status_t = sgx_status_t::SGX_ERROR_UNEXPECTED;
                     // let res = unsafe{
-                    //     ocall_get_update_info(&mut rt as *mut sgx_status_t,
+                    //     ffi::ocall_get_update_info(&mut rt as *mut sgx_status_t,
                     //                           platform_info.as_slice().as_ptr() as * const sgx_platform_info_t,
                     //                           1,
                     //                           &mut update_info as * mut sgx_update_info_bit_t)

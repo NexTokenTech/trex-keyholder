@@ -221,6 +221,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b645a089122eccb6111b4f81cbc1a49f5900ac4666bb93ac027feaecf15607bf"
 
 [[package]]
+name = "benchmarking-primitives"
+version = "0.1.0"
+source = "git+https://github.com/NexTokenTech/TREX?branch=main#a855be0c4ae1629fded2d709844ac18978350b5f"
+dependencies = [
+ "frame-benchmarking",
+ "frame-system",
+ "sp-std",
+]
+
+[[package]]
 name = "bitflags"
 version = "1.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -406,6 +416,43 @@ dependencies = [
  "num-integer",
  "num-traits",
  "winapi 0.3.9",
+]
+
+[[package]]
+name = "clap"
+version = "4.0.26"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2148adefda54e14492fb9bddcc600b4344c5d1a3123bd666dcb939c6f0e0e57e"
+dependencies = [
+ "atty",
+ "bitflags",
+ "clap_derive",
+ "clap_lex",
+ "once_cell",
+ "strsim",
+ "termcolor",
+]
+
+[[package]]
+name = "clap_derive"
+version = "4.0.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0177313f9f02afc995627906bbd8967e2be069f5261954222dac78290c2b9014"
+dependencies = [
+ "heck",
+ "proc-macro-error",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "clap_lex"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0d4198f73e42b4936b35b5bb248d81d2b595ecb170da0bac7655c54eedfa8da8"
+dependencies = [
+ "os_str_bytes",
 ]
 
 [[package]]
@@ -615,6 +662,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "dirs"
+version = "4.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ca3aa72a6f96ea37bbc5aa912f6788242832f75369bdfdadcb0e38423f100059"
+dependencies = [
+ "dirs-sys",
+]
+
+[[package]]
+name = "dirs-sys"
+version = "0.3.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b1d1d91c932ef41c0f2663aa8b0ca0342d444d842c06914aa0a7e352d0bada6"
+dependencies = [
+ "libc",
+ "redox_users",
+ "winapi 0.3.9",
+]
+
+[[package]]
 name = "downcast-rs"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -715,6 +782,15 @@ name = "environmental"
 version = "1.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68b91989ae21441195d7d9b9993a2f9295c7e1a8c96255d8b729accddc124797"
+
+[[package]]
+name = "failure"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d32e9bd16cc02eae7db7ef620b392808b89f6a5e16bb3497d159c6b92a0f4f86"
+dependencies = [
+ "backtrace",
+]
 
 [[package]]
 name = "fake-simd"
@@ -1292,6 +1368,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "ias-verify"
+version = "0.1.4"
+source = "git+https://github.com/NexTokenTech/TREX?branch=main#a855be0c4ae1629fded2d709844ac18978350b5f"
+dependencies = [
+ "base64",
+ "chrono",
+ "frame-support",
+ "parity-scale-codec",
+ "scale-info",
+ "serde_json",
+ "sp-core",
+ "sp-io",
+ "sp-std",
+ "webpki",
+]
+
+[[package]]
 name = "idna"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1837,6 +1930,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "os_str_bytes"
+version = "6.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7b5bf27447411e9ee3ff51186bf7a08e16c341efdde93f4d823e8844429bed7e"
+
+[[package]]
 name = "pallet-aura"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.30#a3ed0119c45cdd0d571ad34e5b3ee7518c8cef8d"
@@ -1955,15 +2054,23 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-template"
-version = "4.0.0-dev"
-source = "git+https://github.com/NexTokenTech/TREX?branch=main#e66160129fbe8f4d72b6431e39d9f5fe43a61b0e"
+name = "pallet-tee"
+version = "0.1.0-dev"
+source = "git+https://github.com/NexTokenTech/TREX?branch=main#a855be0c4ae1629fded2d709844ac18978350b5f"
 dependencies = [
- "frame-benchmarking",
+ "benchmarking-primitives",
  "frame-support",
  "frame-system",
+ "ias-verify",
+ "log",
+ "pallet-timestamp",
  "parity-scale-codec",
  "scale-info",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "tee-primitives",
 ]
 
 [[package]]
@@ -2009,6 +2116,21 @@ dependencies = [
  "parity-scale-codec",
  "sp-api",
  "sp-runtime",
+]
+
+[[package]]
+name = "pallet-trex"
+version = "0.1.0-dev"
+source = "git+https://github.com/NexTokenTech/TREX?branch=main#a855be0c4ae1629fded2d709844ac18978350b5f"
+dependencies = [
+ "benchmarking-primitives",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-std",
+ "trex-primitives",
 ]
 
 [[package]]
@@ -2203,6 +2325,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "proc-macro-error"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "da25490ff9892aab3fcf7c36f08cfb902dd3e71ca0f9f9517bea02a73a5ce38c"
+dependencies = [
+ "proc-macro-error-attr",
+ "proc-macro2",
+ "quote",
+ "syn",
+ "version_check",
+]
+
+[[package]]
+name = "proc-macro-error-attr"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a1be40180e52ecc98ad80b184934baf3d0d29f979574e439af5a55274b35f869"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "version_check",
+]
+
+[[package]]
 name = "proc-macro2"
 version = "1.0.47"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2357,6 +2503,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "redox_users"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b033d837a7cf162d7993aded9304e30a83213c648b6e389db233191f891e5c2b"
+dependencies = [
+ "getrandom 0.2.8",
+ "redox_syscall",
+ "thiserror",
+]
+
+[[package]]
 name = "ref-cast"
 version = "1.0.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2420,6 +2577,34 @@ dependencies = [
  "crypto-bigint",
  "hmac 0.11.0",
  "zeroize",
+]
+
+[[package]]
+name = "ring"
+version = "0.16.9"
+source = "git+https://github.com/scs/webpki-nostd.git#935d31c36fa9b6d55a3226572eaf2b3ded7cf437"
+dependencies = [
+ "cc",
+ "libc",
+ "spin",
+ "untrusted",
+ "which",
+ "winapi 0.3.9",
+]
+
+[[package]]
+name = "ring"
+version = "0.16.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3053cf52e236a3ed746dfc745aa9cacf1b791d846bdaf412f60a8d7d6e17c8fc"
+dependencies = [
+ "cc",
+ "libc",
+ "once_cell",
+ "spin",
+ "untrusted",
+ "web-sys",
+ "winapi 0.3.9",
 ]
 
 [[package]]
@@ -2674,7 +2859,7 @@ dependencies = [
 [[package]]
 name = "sgx_crypto_helper"
 version = "1.1.5"
-source = "git+https://github.com/apache/incubator-teaclave-sgx-sdk#c52d76bcdc56e8e57174f9655347dce1b337b25a"
+source = "git+https://github.com/apache/incubator-teaclave-sgx-sdk?tag=v1.1.5#d2d339cbb005f676bb700059bd51dc689c025f6b"
 dependencies = [
  "itertools",
  "libc",
@@ -2693,7 +2878,7 @@ source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.3#a6a172e6
 [[package]]
 name = "sgx_types"
 version = "1.1.5"
-source = "git+https://github.com/apache/incubator-teaclave-sgx-sdk#c52d76bcdc56e8e57174f9655347dce1b337b25a"
+source = "git+https://github.com/apache/incubator-teaclave-sgx-sdk?tag=v1.1.5#d2d339cbb005f676bb700059bd51dc689c025f6b"
 
 [[package]]
 name = "sgx_ucrypto"
@@ -2709,7 +2894,7 @@ dependencies = [
 [[package]]
 name = "sgx_urts"
 version = "1.1.5"
-source = "git+https://github.com/apache/incubator-teaclave-sgx-sdk#c52d76bcdc56e8e57174f9655347dce1b337b25a"
+source = "git+https://github.com/apache/incubator-teaclave-sgx-sdk?tag=v1.1.5#d2d339cbb005f676bb700059bd51dc689c025f6b"
 dependencies = [
  "libc",
  "sgx_types 1.1.5",
@@ -3392,6 +3577,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "spin"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
+
+[[package]]
 name = "spki"
 version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3434,6 +3625,12 @@ dependencies = [
  "num-traits",
  "rand 0.8.5",
 ]
+
+[[package]]
+name = "strsim"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "73473c0e59e6d5812c5dfe2a064a6444949f089e20eec9a2e5506596494e4623"
 
 [[package]]
 name = "strum"
@@ -3552,6 +3749,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
 
 [[package]]
+name = "tee-primitives"
+version = "0.1.0"
+source = "git+https://github.com/NexTokenTech/TREX?branch=main#a855be0c4ae1629fded2d709844ac18978350b5f"
+dependencies = [
+ "ias-verify",
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "sp-core",
+ "sp-io",
+ "sp-std",
+]
+
+[[package]]
 name = "tempfile"
 version = "3.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3636,6 +3847,10 @@ name = "tinyvec_macros"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cda74da7e1a664f795bb1f8a87ec406fb89a02522cf6e50620d016add6dbbf5c"
+
+[[package]]
+name = "tkp-settings"
+version = "0.9.0"
 
 [[package]]
 name = "toml"
@@ -3726,9 +3941,16 @@ dependencies = [
 name = "trex-keyholder"
 version = "1.0.0"
 dependencies = [
+ "clap",
  "derive_more",
+ "dirs",
  "env_logger",
+ "frame-support",
+ "frame-system",
+ "hex",
  "log",
+ "pallet-trex",
+ "parity-scale-codec",
  "serde",
  "serde_derive",
  "serde_json",
@@ -3739,14 +3961,29 @@ dependencies = [
  "sp-core",
  "sp-runtime",
  "substrate-api-client",
+ "thiserror",
+ "tkp-settings",
  "trex-runtime",
  "ws",
 ]
 
 [[package]]
+name = "trex-primitives"
+version = "0.1.0"
+source = "git+https://github.com/NexTokenTech/TREX?branch=main#a855be0c4ae1629fded2d709844ac18978350b5f"
+dependencies = [
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "sp-core",
+ "sp-io",
+ "sp-std",
+]
+
+[[package]]
 name = "trex-runtime"
 version = "4.0.0-dev"
-source = "git+https://github.com/NexTokenTech/TREX?branch=main#e66160129fbe8f4d72b6431e39d9f5fe43a61b0e"
+source = "git+https://github.com/NexTokenTech/TREX?branch=main#a855be0c4ae1629fded2d709844ac18978350b5f"
 dependencies = [
  "frame-benchmarking",
  "frame-executive",
@@ -3760,10 +3997,11 @@ dependencies = [
  "pallet-grandpa",
  "pallet-randomness-collective-flip",
  "pallet-sudo",
- "pallet-template",
+ "pallet-tee",
  "pallet-timestamp",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
+ "pallet-trex",
  "parity-scale-codec",
  "scale-info",
  "sp-api",
@@ -3876,6 +4114,12 @@ name = "unsafe-libyaml"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c1e5fa573d8ac5f1a856f8d7be41d390ee973daf97c806b2c1a465e4e1406e68"
+
+[[package]]
+name = "untrusted"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a156c684c91ea7d62626509bce3cb4e1d9ed5c4d978f7b4352658f96a4c26b4a"
 
 [[package]]
 name = "url"
@@ -4025,6 +4269,36 @@ dependencies = [
  "memory_units",
  "num-rational",
  "num-traits",
+]
+
+[[package]]
+name = "web-sys"
+version = "0.3.60"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bcda906d8be16e728fd5adc5b729afad4e444e106ab28cd1c7256e54fa61510f"
+dependencies = [
+ "js-sys",
+ "wasm-bindgen",
+]
+
+[[package]]
+name = "webpki"
+version = "0.21.0"
+source = "git+https://github.com/scs/webpki-nostd.git#935d31c36fa9b6d55a3226572eaf2b3ded7cf437"
+dependencies = [
+ "ring 0.16.20",
+ "ring 0.16.9",
+ "untrusted",
+]
+
+[[package]]
+name = "which"
+version = "3.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d011071ae14a2f6671d0b74080ae0cd8ebf3a6f8c9589a2cd45f23126fe29724"
+dependencies = [
+ "failure",
+ "libc",
 ]
 
 [[package]]
@@ -4214,8 +4488,3 @@ dependencies = [
  "cc",
  "libc",
 ]
-
-[[patch.unused]]
-name = "sgx_ucrypto"
-version = "1.1.5"
-source = "git+https://github.com/apache/incubator-teaclave-sgx-sdk#c52d76bcdc56e8e57174f9655347dce1b337b25a"

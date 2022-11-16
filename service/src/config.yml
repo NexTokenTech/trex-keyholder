@@ -8,13 +8,11 @@ settings:
   - ColoredHelp
   - SubcommandRequired
 
-# All subcommands must be listed in the 'subcommand:' object, where the key to
-# the list is the name of the subcommand, and all settings for that command are
-# part of a Hash
-args:
-  - node-server: ws://127.0.0.1
-  - node-port: 9944
-  - ws-external:
-  - mu-ra-port: 3443
-  - enable-metrics: true
-  - metrics-port: 8787
+# Config Settings for key-holder
+node_ip: ws://127.0.0.1
+node_port: 9944
+keyholder_ip: 0.0.0.0
+mu_ra_external_address:
+mu_ra_port: 3443
+enable_metrics_server: true
+metrics_server_port: 8787

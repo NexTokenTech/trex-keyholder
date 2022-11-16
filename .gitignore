@@ -18,3 +18,4 @@
 /bin/ext_map.bin
 /bin/minheap_source.bin
 /bin/trex-keyholder
+/bin/ed25519_key_sealed.bin
