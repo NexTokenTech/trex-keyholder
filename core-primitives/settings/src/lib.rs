@@ -60,6 +60,7 @@ pub mod worker {
 	// the maximum size of the header
 	pub const HEADER_MAX_SIZE: usize = 200;
 	// maximum size of shielding key
+	// (this size is significantly inflated by using JSON serialization)
 	pub const SHIELDING_KEY_SIZE: usize = 8192;
 	// maximum size of signing key
 	pub const SIGNING_KEY_SIZE: usize = 32;

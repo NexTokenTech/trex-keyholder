@@ -29,7 +29,7 @@ use sgx_types::*;
 use sgx_urts::SgxEnclave;
 
 use frame_system::EventRecord;
-use log::debug;
+use log::{debug, info};
 use sgx_crypto_helper::{
 	rsa3072::{Rsa3072KeyPair, Rsa3072PubKey},
 	RsaKeyPair,
@@ -80,19 +80,20 @@ fn main() {
 	// init enclave instance
 	let enclave = match enclave_init() {
 		Ok(r) => {
-			println!("[+] Init Enclave Successful {}!", r.geteid());
+			info!("[+] Init Enclave Successful {}!", r.geteid());
 			r
 		},
 		Err(x) => {
-			println!("[-] Init Enclave Failed {}!", x.as_str());
+			info!("[-] Init Enclave Failed {}!", x.as_str());
 			return
 		},
 	};
 
 	// ------------------------------------------------------------------------
-	// Get the public key of our TEE.
+	// Get the account ID of our TEE.
 	let tee_account_id = enclave_account(&enclave).unwrap();
 
+	// prepare websocket connection.
 	let url = config.node_url();
 	let client = WsRpcClient::new(&url);
 	let api = Api::<sr25519::Pair, _, AssetTipExtrinsicParams>::new(client).unwrap();
@@ -119,7 +120,7 @@ fn main() {
 	let mut xthex = hex::encode(uxt);
 	xthex.insert_str(0, "0x");
 
-	println!("{:?}",xthex);
+	info!("Generated RA EXT");
 	// TODO: send extrinsic on chain
 	// println!("[>] Register the enclave (send the extrinsic)");
 	// let register_enclave_xt_hash = node_api.send_extrinsic(xthex, XtStatus::Finalized).unwrap();

@@ -7,6 +7,7 @@ use sgx_rand::*;
 use sgx_tcrypto::*;
 use sgx_tse::*;
 use sgx_types::*;
+use sgx_types::SGX_RSA3072_KEY_SIZE;
 use sp_core::{blake2_256, Pair};
 use std::{
 	io::{Read, Write},
@@ -26,8 +27,9 @@ pub use substrate_api_client::{
 };
 use tkp_sgx_crypto::Ed25519Seal;
 use tkp_sgx_io::StaticSealedIO;
-use crate::utils::node_metadata::*;
-use crate::{NODE_META_DATA,write_slice_and_whitespace_pad};
+use tkp_settings::files::{RA_SPID_FILE, RA_API_KEY_FILE};
+use crate::utils::node_metadata::NodeMetadata;
+use crate::{NODE_META_DATA, write_slice_and_whitespace_pad, get_rsa_encryption_pubkey};
 use sp_core::{Decode,Encode};
 use crate::Error;
 
@@ -134,7 +136,12 @@ pub unsafe extern "C" fn perform_ra(
 		genesis_hash,
 		PlainTipExtrinsicParamsBuilder::default(),
 	);
-	// TODO: add shielding key to call
+	// Generate shielding pubkey. This vector contains two parts, the first part is rsa modules
+	// (384 bytes), the second part is the public exponent (4 bytes).
+	let pubkey_size = SGX_RSA3072_KEY_SIZE + SGX_RSA3072_PUB_EXP_SIZE;
+	let mut pubkey = vec![0u8; pubkey_size as usize];
+	get_rsa_encryption_pubkey(pubkey.as_mut_ptr(), pubkey.len() as u32);
+	info!("RSA pub key: {:?}", pubkey);
 	#[allow(clippy::redundant_clone)]
 	let xt = compose_extrinsic_offline!(
 		signer,
@@ -467,7 +474,7 @@ pub fn create_attestation_report(
 	let p_report = (&rep.unwrap()) as *const sgx_report_t;
 	let quote_type = sign_type;
 
-	let spid: sgx_spid_t = load_spid("spid.txt");
+	let spid: sgx_spid_t = load_spid(RA_SPID_FILE);
 
 	let p_spid = &spid as *const sgx_spid_t;
 	let p_nonce = &quote_nonce as *const sgx_quote_nonce_t;
@@ -576,7 +583,7 @@ fn load_spid(filename: &str) -> sgx_spid_t {
 }
 
 fn get_ias_api_key() -> String {
-	let mut keyfile = fs::File::open("key.txt").expect("cannot open ias key file");
+	let mut keyfile = fs::File::open(RA_API_KEY_FILE).expect("cannot open ias key file");
 	let mut key = String::new();
 	keyfile.read_to_string(&mut key).expect("cannot read the ias key file");
 
