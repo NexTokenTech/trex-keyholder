@@ -74,17 +74,20 @@ mod hex;
 mod attestation;
 mod ocall;
 pub mod error;
+mod utils;
 
 use tkp_settings::files::*;
 use tkp_sgx_crypto::{ed25519, Ed25519Seal};
 use tkp_sgx_io::StaticSealedIO;
-use crate::error::{Error};
+use crate::error::{Error,Result};
 use sp_core::crypto::{Pair};
+use sp_core::{Decode,Encode};
 use tkp_nonce_cache::{MutateNonce, Nonce, GLOBAL_NONCE_CACHE};
-
+use utils::node_metadata::*;
 
 lazy_static! {
     static ref MIN_BINARY_HEAP: Mutex<BinaryHeap<Reverse<Ext>>> = Mutex::new(BinaryHeap::new());
+    pub static ref NODE_META_DATA: Mutex<Vec<u8>> = Mutex::new(Vec::<u8>::new());
 }
 
 #[no_mangle]
@@ -232,25 +235,21 @@ pub unsafe extern "C" fn set_node_metadata(
     node_metadata: *const u8,
     node_metadata_size: u32,
 ) -> sgx_status_t {
-    // let mut node_metadata_slice = slice::from_raw_parts(node_metadata, node_metadata_size as usize);
-    // let metadata = match NodeMetadata::decode(&mut node_metadata_slice).map_err(Error::Codec) {
-    //     Err(e) => {
-    //         error!("Failed to decode node metadata: {:?}", e);
-    //         return sgx_status_t::SGX_ERROR_UNEXPECTED
-    //     },
-    //     Ok(m) => m,
-    // };
-    //
-    // let node_metadata_repository = match GLOBAL_NODE_METADATA_REPOSITORY_COMPONENT.get() {
-    //     Ok(r) => r,
-    //     Err(e) => {
-    //         error!("Component get failure: {:?}", e);
-    //         return sgx_status_t::SGX_ERROR_UNEXPECTED
-    //     },
-    // };
-    //
-    // node_metadata_repository.set_metadata(metadata);
-    // info!("Successfully set the node meta data");
+    let mut node_metadata_slice = slice::from_raw_parts(node_metadata, node_metadata_size as usize);
+    let metadata = match NodeMetadata::decode(&mut node_metadata_slice).map_err(Error::Codec) {
+        Err(e) => {
+            error!("Failed to decode node metadata: {:?}", e);
+            return sgx_status_t::SGX_ERROR_UNEXPECTED
+        },
+        Ok(m) => m,
+    };
+
+    let mut node_metadata_slice_mem = NODE_META_DATA.lock().unwrap();
+    node_metadata_slice_mem.clear();
+    let metadata_encode = metadata.encode();
+    for (_ ,item) in metadata_encode.iter().enumerate(){
+        node_metadata_slice_mem.push(*item);
+    }
 
     sgx_status_t::SGX_SUCCESS
 }
@@ -333,6 +332,14 @@ fn provisioning_key(key_ptr: *const u8, some_len: usize, file_name:&str){
             println!("SgxFile create file {} error {}", file_name, x);
         }
     }
+}
+
+pub fn write_slice_and_whitespace_pad(writable: &mut [u8], data: Vec<u8>) -> Result<()> {
+    let (left, right) = writable.split_at_mut(data.len());
+    left.clone_from_slice(&data);
+    // fill the right side with whitespace
+    right.iter_mut().for_each(|x| *x = 0x20);
+    Ok(())
 }
 
 

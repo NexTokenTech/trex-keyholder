@@ -56,44 +56,47 @@ tkp-sgx-io = { path = "../core-primitives/sgx/io", default-features = false, fea
 tkp-sgx-crypto = { path = "../core-primitives/sgx/crypto", default-features = false, features = ["sgx"] }
 tkp-nonce-cache = { path = "../core-primitives/nonce-cache", default-features = false, features = ["sgx"] }
 
-
 frame-support = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.27" }
 sp-core = { default-features = false,features = ["full_crypto"], git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.27" }
-substrate-api-client = { default-features = false, git = "https://github.com/scs/substrate-api-client.git", branch = "polkadot-v0.9.27" }
+sp-finality-grandpa = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.27" }
+sp-runtime = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.27" }
+sp-std = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.27" }
+sp-version = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.27" }
+sp-application-crypto = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.27" }
+sp-io = { default-features = false, features = ["disable_oom", "disable_panic_handler", "disable_allocator", "sgx"], path = "../core-primitives/substrate-sgx/sp-io" }
 
+substrate-api-client = { default-features = false, git = "https://github.com/scs/substrate-api-client.git", branch = "polkadot-v0.9.27" }
 
 [dependencies.rustls]
 git = "https://github.com/mesalock-linux/rustls"
 branch = "mesalock_sgx"
 features = ["dangerous_configuration"]
 
+[patch.crates-io]
+env_logger = { git = "https://github.com/integritee-network/env_logger-sgx" }
+getrandom = { git = "https://github.com/integritee-network/getrandom-sgx", branch = "update-v2.3" }
+log = { git = "https://github.com/integritee-network/log-sgx" }
+
+[patch."https://github.com/mesalock-linux/log-sgx"]
+log = { git = "https://github.com/integritee-network/log-sgx" }
+
+[patch."https://github.com/paritytech/substrate"]
+sp-io = { path = "../core-primitives/substrate-sgx/sp-io" }
+
 [patch.'https://github.com/apache/teaclave-sgx-sdk.git']
-# sgx_align_struct_attribute = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
 sgx_alloc = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
-# sgx_backtrace = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
 sgx_backtrace_sys = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
 sgx_build_helper = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
-# sgx_cov = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
 sgx_crypto_helper = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
 sgx_demangle = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
 sgx_libc = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
-# sgx_no_tstd = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
 sgx_rand = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
-# sgx_rand_derive = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
 sgx_serialize = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
-# sgx_serialize_derive = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
-# sgx_serialize_derive_internals = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
 sgx_tcrypto = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
 sgx_tcrypto_helper = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
-# sgx_tdh = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
-# sgx_tkey_exchange = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
 sgx_tprotected_fs = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
 sgx_trts = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
 sgx_tse = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
 sgx_tseal = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
 sgx_tstd = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
-# sgx_tunittest = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
 sgx_types = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
-# sgx_ucrypto = { path = "../../../sgx_ucrypto" }
-# sgx_unwind = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
-# sgx_urts = { path = "../../../sgx_urts" }

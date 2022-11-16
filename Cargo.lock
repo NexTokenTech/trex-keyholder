@@ -2808,7 +2808,7 @@ dependencies = [
 [[package]]
 name = "sgx_crypto_helper"
 version = "1.1.5"
-source = "git+https://github.com/apache/incubator-teaclave-sgx-sdk#c52d76bcdc56e8e57174f9655347dce1b337b25a"
+source = "git+https://github.com/apache/incubator-teaclave-sgx-sdk?tag=v1.1.5#d2d339cbb005f676bb700059bd51dc689c025f6b"
 dependencies = [
  "itertools",
  "libc",
@@ -2827,7 +2827,7 @@ source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.3#a6a172e6
 [[package]]
 name = "sgx_types"
 version = "1.1.5"
-source = "git+https://github.com/apache/incubator-teaclave-sgx-sdk#c52d76bcdc56e8e57174f9655347dce1b337b25a"
+source = "git+https://github.com/apache/incubator-teaclave-sgx-sdk?tag=v1.1.5#d2d339cbb005f676bb700059bd51dc689c025f6b"
 
 [[package]]
 name = "sgx_ucrypto"
@@ -2843,7 +2843,7 @@ dependencies = [
 [[package]]
 name = "sgx_urts"
 version = "1.1.5"
-source = "git+https://github.com/apache/incubator-teaclave-sgx-sdk#c52d76bcdc56e8e57174f9655347dce1b337b25a"
+source = "git+https://github.com/apache/incubator-teaclave-sgx-sdk?tag=v1.1.5#d2d339cbb005f676bb700059bd51dc689c025f6b"
 dependencies = [
  "libc",
  "sgx_types 1.1.5",
@@ -3905,6 +3905,7 @@ dependencies = [
  "env_logger",
  "frame-support",
  "frame-system",
+ "hex",
  "log",
  "pallet-trex",
  "parity-scale-codec",
@@ -4009,7 +4010,7 @@ version = "1.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
- "cfg-if 0.1.10",
+ "cfg-if 1.0.0",
  "digest 0.10.5",
  "rand 0.8.5",
  "static_assertions",
@@ -4457,8 +4458,3 @@ dependencies = [
  "cc",
  "libc",
 ]
-
-[[patch.unused]]
-name = "sgx_ucrypto"
-version = "1.1.5"
-source = "git+https://github.com/apache/incubator-teaclave-sgx-sdk#c52d76bcdc56e8e57174f9655347dce1b337b25a"

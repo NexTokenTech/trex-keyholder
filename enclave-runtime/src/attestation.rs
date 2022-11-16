@@ -7,7 +7,7 @@ use sgx_rand::*;
 use sgx_tcrypto::*;
 use sgx_tse::*;
 use sgx_types::*;
-use sp_core::Pair;
+use sp_core::{blake2_256, Pair};
 use std::{
 	io::{Read, Write},
 	net::TcpStream,
@@ -24,8 +24,12 @@ pub use substrate_api_client::{
 	PlainTip, PlainTipExtrinsicParams, PlainTipExtrinsicParamsBuilder, SubstrateDefaultSignedExtra,
 	UncheckedExtrinsicV4,
 };
-use tkp_sgx_crypto::{ed25519, Ed25519Seal};
+use tkp_sgx_crypto::Ed25519Seal;
 use tkp_sgx_io::StaticSealedIO;
+use crate::utils::node_metadata::*;
+use crate::{NODE_META_DATA,write_slice_and_whitespace_pad};
+use sp_core::{Decode,Encode};
+use crate::Error;
 
 pub const DEV_HOSTNAME: &'static str = "api.trustedservices.intel.com";
 pub const SIGRL_SUFFIX: &'static str = "/sgx/dev/attestation/v4/sigrl/";
@@ -57,26 +61,26 @@ pub unsafe extern "C" fn perform_ra(
 
 	let (attn_report, sig, cert) = match create_attestation_report(&pub_k, sign_type) {
 		Ok(r) => {
-			println!("Success in create_attestation_report: {:?}", r);
+			debug!("Success in create_attestation_report: {:?}", r);
 			r
 		},
 		Err(e) => {
-			println!("Error in create_attestation_report: {:?}", e);
+			debug!("Error in create_attestation_report: {:?}", e);
 			return e
 		},
 	};
 
 	let payload = attn_report + "|" + &sig + "|" + &cert;
-	let (key_der, cert_der) = match cert::gen_ecc_cert(payload, &prv_k, &pub_k, &ecc_handle) {
+	let (_key_der, cert_der) = match cert::gen_ecc_cert(payload, &prv_k, &pub_k, &ecc_handle) {
 		Ok(r) => r,
 		Err(e) => {
-			println!("Error in gen_ecc_cert: {:?}", e);
+			debug!("Error in gen_ecc_cert: {:?}", e);
 			return e
 		},
 	};
 	let _result = ecc_handle.close();
 
-	println!("    [Enclave] Compose extrinsic");
+	debug!("    [Enclave] Compose extrinsic");
 	let genesis_hash_slice = slice::from_raw_parts(genesis_hash, genesis_hash_size as usize);
 	//let mut nonce_slice     = slice::from_raw_parts(nonce, nonce_size as usize);
 	let url_slice = slice::from_raw_parts(w_url, w_url_size as usize);
@@ -93,18 +97,74 @@ pub unsafe extern "C" fn perform_ra(
 	debug!("decoded genesis_hash: {:?}", genesis_hash_slice);
 	debug!("worker url: {}", str::from_utf8(url_slice).unwrap());
 
-	// TODO: metadata runtime-version runtime-transaction-version construct uxt
+	let node_metadata_slice_mem = NODE_META_DATA.lock().unwrap();
+
+	let mut metadata_slice:Vec<u8> = Vec::<u8>::new();
+	for (_, item) in node_metadata_slice_mem.iter().enumerate(){
+		metadata_slice.push(*item);
+	}
+	let metadata = match NodeMetadata::decode(&mut metadata_slice.as_slice()).map_err(Error::Codec) {
+		Err(e) => {
+			error!("Failed to decode node metadata: {:?}", e);
+			return sgx_status_t::SGX_ERROR_UNEXPECTED
+		},
+		Ok(m) => m,
+	};
+
+	let (register_enclave_call, runtime_spec_version, runtime_transaction_version) =
+		(
+			metadata.call_indexes("Tee", "register_enclave"),
+			metadata.get_runtime_version(),
+			metadata.get_runtime_transaction_version(),
+		);
+
+	let call =
+		match register_enclave_call {
+			Ok(c) => c,
+			Err(e) => {
+				error!("Failed to get the indexes for the register_enclave call from the metadata: {:?}", e);
+				return sgx_status_t::SGX_ERROR_UNEXPECTED
+			},
+		};
+
+	let extrinsic_params = PlainTipExtrinsicParams::new(
+		runtime_spec_version,
+		runtime_transaction_version,
+		*nonce,
+		genesis_hash,
+		PlainTipExtrinsicParamsBuilder::default(),
+	);
+	// TODO: add shielding key to call
+	#[allow(clippy::redundant_clone)]
+	let xt = compose_extrinsic_offline!(
+		signer,
+		(call, cert_der.to_vec(), url_slice.to_vec()),
+		extrinsic_params
+	);
+
+	let xt_encoded = xt.encode();
+	let xt_hash = blake2_256(&xt_encoded);
+	debug!("    [Enclave] Encoded extrinsic ( len = {} B), hash {:?}", xt_encoded.len(), xt_hash);
+
+	match write_slice_and_whitespace_pad(extrinsic_slice, xt_encoded) {
+		Ok(_) => {
+
+		},
+		Err(e) => {
+			println!("Result Error {:?}",e);
+		}
+	};
 
 	sgx_status_t::SGX_SUCCESS
 }
 
 /// remote attestation report
 fn parse_response_attn_report(resp: &[u8]) -> (String, String, String) {
-	println!("parse_response_attn_report");
+	debug!("parse_response_attn_report");
 	let mut headers = [httparse::EMPTY_HEADER; 16];
 	let mut respp = httparse::Response::new(&mut headers);
 	let result = respp.parse(resp);
-	println!("parse result {:?}", result);
+	debug!("parse result {:?}", result);
 
 	let msg: &'static str;
 
@@ -119,12 +179,12 @@ fn parse_response_attn_report(resp: &[u8]) -> (String, String, String) {
             temporary state – the same request can be repeated after
             some time. ",
 		_ => {
-			println!("DBG:{}", respp.code.unwrap());
+			debug!("DBG:{}", respp.code.unwrap());
 			msg = "Unknown error occured"
 		},
 	}
 
-	println!("{}", msg);
+	debug!("{}", msg);
 	let mut len_num: u32 = 0;
 
 	let mut sig = String::new();
@@ -133,12 +193,12 @@ fn parse_response_attn_report(resp: &[u8]) -> (String, String, String) {
 
 	for i in 0..respp.headers.len() {
 		let h = respp.headers[i];
-		//println!("{} : {}", h.name, str::from_utf8(h.value).unwrap());
+		//debug!("{} : {}", h.name, str::from_utf8(h.value).unwrap());
 		match h.name {
 			"Content-Length" => {
 				let len_str = String::from_utf8(h.value.to_vec()).unwrap();
 				len_num = len_str.parse::<u32>().unwrap();
-				println!("content length = {}", len_num);
+				debug!("content length = {}", len_num);
 			},
 			"X-IASReport-Signature" => sig = str::from_utf8(h.value).unwrap().to_string(),
 			"X-IASReport-Signing-Certificate" =>
@@ -157,7 +217,7 @@ fn parse_response_attn_report(resp: &[u8]) -> (String, String, String) {
 		let header_len = result.unwrap().unwrap();
 		let resp_body = &resp[header_len..];
 		attn_report = str::from_utf8(resp_body).unwrap().to_string();
-		println!("Attestation report: {}", attn_report);
+		debug!("Attestation report: {}", attn_report);
 	}
 
 	// len_num == 0
@@ -165,12 +225,12 @@ fn parse_response_attn_report(resp: &[u8]) -> (String, String, String) {
 }
 
 fn parse_response_sigrl(resp: &[u8]) -> Vec<u8> {
-	println!("parse_response_sigrl");
+	debug!("parse_response_sigrl");
 	let mut headers = [httparse::EMPTY_HEADER; 16];
 	let mut respp = httparse::Response::new(&mut headers);
 	let result = respp.parse(resp);
-	println!("parse result {:?}", result);
-	println!("parse response{:?}", respp);
+	debug!("parse result {:?}", result);
+	debug!("parse response{:?}", respp);
 
 	let msg: &'static str;
 
@@ -187,7 +247,7 @@ fn parse_response_sigrl(resp: &[u8]) -> Vec<u8> {
 		_ => msg = "Unknown error occured",
 	}
 
-	println!("{}", msg);
+	debug!("{}", msg);
 	let mut len_num: u32 = 0;
 
 	for i in 0..respp.headers.len() {
@@ -195,14 +255,14 @@ fn parse_response_sigrl(resp: &[u8]) -> Vec<u8> {
 		if h.name == "content-length" {
 			let len_str = String::from_utf8(h.value.to_vec()).unwrap();
 			len_num = len_str.parse::<u32>().unwrap();
-			println!("content length = {}", len_num);
+			debug!("content length = {}", len_num);
 		}
 	}
 
 	if len_num != 0 {
 		let header_len = result.unwrap().unwrap();
 		let resp_body = &resp[header_len..];
-		println!("Base64-encoded SigRL: {:?}", resp_body);
+		debug!("Base64-encoded SigRL: {:?}", resp_body);
 
 		return base64::decode(str::from_utf8(resp_body).unwrap()).unwrap()
 	}
@@ -220,7 +280,7 @@ pub fn make_ias_client_config() -> rustls::ClientConfig {
 }
 
 pub fn get_sigrl_from_intel(fd: c_int, gid: u32) -> Vec<u8> {
-	println!("get_sigrl_from_intel fd = {:?}", fd);
+	debug!("get_sigrl_from_intel fd = {:?}", fd);
 	let config = make_ias_client_config();
 	//let sigrl_arg = SigRLArg { group_id : gid };
 	//let sigrl_req = sigrl_arg.to_httpreq();
@@ -231,7 +291,7 @@ pub fn get_sigrl_from_intel(fd: c_int, gid: u32) -> Vec<u8> {
                       gid,
                       DEV_HOSTNAME,
                       ias_key);
-	println!("{}", req);
+	debug!("{}", req);
 
 	let dns_name = webpki::DNSNameRef::try_from_ascii_str(DEV_HOSTNAME).unwrap();
 	let mut sess = rustls::ClientSession::new(&Arc::new(config), dns_name);
@@ -241,26 +301,26 @@ pub fn get_sigrl_from_intel(fd: c_int, gid: u32) -> Vec<u8> {
 	let _result = tls.write(req.as_bytes());
 	let mut plaintext = Vec::new();
 
-	println!("write complete");
+	debug!("write complete");
 
 	match tls.read_to_end(&mut plaintext) {
 		Ok(_) => (),
 		Err(e) => {
-			println!("get_sigrl_from_intel tls.read_to_end: {:?}", e);
+			debug!("get_sigrl_from_intel tls.read_to_end: {:?}", e);
 			panic!("haha");
 		},
 	}
-	println!("read_to_end complete");
+	debug!("read_to_end complete");
 	let resp_string = String::from_utf8(plaintext.clone()).unwrap();
 
-	println!("{}", resp_string);
+	debug!("{}", resp_string);
 
 	parse_response_sigrl(&plaintext)
 }
 
 // TODO: support pse
 pub fn get_report_from_intel(fd: c_int, quote: Vec<u8>) -> (String, String, String) {
-	println!("get_report_from_intel fd = {:?}", fd);
+	debug!("get_report_from_intel fd = {:?}", fd);
 	let config = make_ias_client_config();
 	let encoded_quote = base64::encode(&quote[..]);
 	let encoded_json = format!("{{\"isvEnclaveQuote\":\"{}\"}}\r\n", encoded_quote);
@@ -273,7 +333,7 @@ pub fn get_report_from_intel(fd: c_int, quote: Vec<u8>) -> (String, String, Stri
                       ias_key,
                       encoded_json.len(),
                       encoded_json);
-	println!("{}", req);
+	debug!("{}", req);
 	let dns_name = webpki::DNSNameRef::try_from_ascii_str(DEV_HOSTNAME).unwrap();
 	let mut sess = rustls::ClientSession::new(&Arc::new(config), dns_name);
 	let mut sock = TcpStream::new(fd).unwrap();
@@ -282,13 +342,13 @@ pub fn get_report_from_intel(fd: c_int, quote: Vec<u8>) -> (String, String, Stri
 	let _result = tls.write(req.as_bytes());
 	let mut plaintext = Vec::new();
 
-	println!("write complete");
+	debug!("write complete");
 
 	tls.read_to_end(&mut plaintext).unwrap();
-	println!("read_to_end complete");
+	debug!("read_to_end complete");
 	let resp_string = String::from_utf8(plaintext.clone()).unwrap();
 
-	println!("resp_string = {}", resp_string);
+	debug!("resp_string = {}", resp_string);
 
 	let (attn_report, sig, cert) = parse_response_attn_report(&plaintext);
 
@@ -326,7 +386,7 @@ pub fn create_attestation_report(
 		)
 	};
 
-	println!("eg = {:?}", eg);
+	debug!("eg = {:?}", eg);
 
 	if res != sgx_status_t::SGX_SUCCESS {
 		return Err(res)
@@ -353,7 +413,7 @@ pub fn create_attestation_report(
 		return Err(rt)
 	}
 
-	//println!("Got ias_sock = {}", ias_sock);
+	//debug!("Got ias_sock = {}", ias_sock);
 
 	// Now sigrl_vec is the revocation list, a vec<u8>
 	let sigrl_vec: Vec<u8> = get_sigrl_from_intel(ias_sock, eg_num);
@@ -370,11 +430,11 @@ pub fn create_attestation_report(
 
 	let rep = match rsgx_create_report(&ti, &report_data) {
 		Ok(r) => {
-			println!("Report creation => success {:?}", r.body.mr_signer.m);
+			debug!("Report creation => success {:?}", r.body.mr_signer.m);
 			Some(r)
 		},
 		Err(e) => {
-			println!("Report creation => failed {:?}", e);
+			debug!("Report creation => failed {:?}", e);
 			None
 		},
 	};
@@ -382,7 +442,7 @@ pub fn create_attestation_report(
 	let mut quote_nonce = sgx_quote_nonce_t { rand: [0; 16] };
 	let mut os_rng = os::SgxRng::new().unwrap();
 	os_rng.fill_bytes(&mut quote_nonce.rand);
-	println!("rand finished");
+	debug!("rand finished");
 	let mut qe_report = sgx_report_t::default();
 	const RET_QUOTE_BUF_LEN: u32 = 2048;
 	let mut return_quote_buf: [u8; RET_QUOTE_BUF_LEN as usize] = [0; RET_QUOTE_BUF_LEN as usize];
@@ -437,16 +497,16 @@ pub fn create_attestation_report(
 	}
 
 	if rt != sgx_status_t::SGX_SUCCESS {
-		println!("ocall_get_quote returned {}", rt);
+		debug!("ocall_get_quote returned {}", rt);
 		return Err(rt)
 	}
 
 	// Added 09-28-2018
 	// Perform a check on qe_report to verify if the qe_report is valid
 	match rsgx_verify_report(&qe_report) {
-		Ok(()) => println!("rsgx_verify_report passed!"),
+		Ok(()) => debug!("rsgx_verify_report passed!"),
 		Err(x) => {
-			println!("rsgx_verify_report failed with {:?}", x);
+			debug!("rsgx_verify_report failed with {:?}", x);
 			return Err(x)
 		},
 	}
@@ -456,17 +516,17 @@ pub fn create_attestation_report(
 		|| ti.attributes.flags != qe_report.body.attributes.flags
 		|| ti.attributes.xfrm != qe_report.body.attributes.xfrm
 	{
-		println!("qe_report does not match current target_info!");
+		debug!("qe_report does not match current target_info!");
 		return Err(sgx_status_t::SGX_ERROR_UNEXPECTED)
 	}
 
-	println!("qe_report check passed");
+	debug!("qe_report check passed");
 
 	// Debug
 	// for i in 0..quote_len {
 	//     print!("{:02X}", unsafe {*p_quote.offset(i as isize)});
 	// }
-	// println!("");
+	// debug!("");
 
 	// Check qe_report to defend against replay attack
 	// The purpose of p_qe_report is for the ISV enclave to confirm the QUOTE
@@ -482,11 +542,11 @@ pub fn create_attestation_report(
 	let rhs_hash = rsgx_sha256_slice(&rhs_vec[..]).unwrap();
 	let lhs_hash = &qe_report.body.report_data.d[..32];
 
-	println!("rhs hash = {:02X}", rhs_hash.iter().format(""));
-	println!("report hs= {:02X}", lhs_hash.iter().format(""));
+	debug!("rhs hash = {:02X}", rhs_hash.iter().format(""));
+	debug!("report hs= {:02X}", lhs_hash.iter().format(""));
 
 	if rhs_hash != lhs_hash {
-		println!("Quote is tampered!");
+		debug!("Quote is tampered!");
 		return Err(sgx_status_t::SGX_ERROR_UNEXPECTED)
 	}
 

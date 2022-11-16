@@ -9,6 +9,7 @@ build = "build.rs"
 edition = "2021"
 
 [dependencies]
+hex = "0.4.3"
 codec  = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive"] }
 sgx_types = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 sgx_urts = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }

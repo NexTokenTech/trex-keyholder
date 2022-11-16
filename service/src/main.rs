@@ -18,6 +18,7 @@
 mod config;
 mod enclave;
 mod ocall_impl;
+mod utils;
 
 extern crate serde_json;
 extern crate sgx_crypto_helper;
@@ -40,7 +41,8 @@ use sp_runtime::generic::SignedBlock as SignedBlockG;
 use std::{path::Path, sync::mpsc::channel, thread, time::Duration};
 #[allow(unused)]
 use substrate_api_client::{
-	rpc::WsRpcClient, utils::FromHexString, Api, ApiClientError, AssetTipExtrinsicParams, Metadata,
+	rpc::WsRpcClient, utils::FromHexString, Api, ApiClientError, AssetTipExtrinsicParams,
+	Header as HeaderTrait, Metadata, XtStatus,
 };
 
 // trex modules
@@ -48,14 +50,16 @@ use pallet_trex::Event as TrexEvent;
 use trex_runtime::RuntimeEvent;
 // local modules
 use crate::enclave::error::Error;
+use codec::Encode;
 use config::Config;
 use enclave::{api::*, ffi};
 use frame_support::ensure;
 use sp_core::{
-	crypto::{AccountId32, Ss58Codec},
-	ed25519, sr25519, Decode, Pair, H256 as Hash,
+	crypto::AccountId32,
+	ed25519, sr25519, Decode, H256 as Hash,
 };
 use tkp_settings::worker::EXTRINSIC_MAX_SIZE;
+use utils::node_metadata::*;
 
 fn main() {
 	// ------------------------------------------------------------------------
@@ -94,133 +98,29 @@ fn main() {
 	// ------------------------------------------------------------------------
 	// Perform a remote attestation and get an unchecked extrinsic back.
 	let nonce = get_nonce(&tee_accountid, &config).unwrap();
-	println!("{:?}", nonce);
 	set_nonce(&enclave, &nonce);
 
 	let metadata = api.metadata.clone();
 	let runtime_spec_version = api.runtime_version.spec_version;
 	let runtime_transaction_version = api.runtime_version.transaction_version;
-	println!("{:?}", runtime_spec_version);
-	println!("{:?}", runtime_transaction_version);
+
+	set_node_metadata(
+		&enclave,
+		NodeMetadata::new(metadata, runtime_spec_version, runtime_transaction_version).encode(),
+	);
 
 	let trusted_url = config.trusted_worker_url_external();
-	// let uxt = if skip_ra {
-	// 	println!(
-	// 		"[!] skipping remote attestation. Registering enclave without attestation report."
-	// 	);
-	// 	enclave.mock_register_xt(node_api.genesis_hash, nonce, &trusted_url).unwrap()
-	// } else {
-	// 	enclave
-	// 		.perform_ra(genesis_hash, nonce, trusted_url.as_bytes().to_vec())
-	// 		.unwrap()
-	// };
+	let uxt = perform_ra(&enclave, genesis_hash, nonce, trusted_url.as_bytes().to_vec()).unwrap();
 
-	let mut retval = sgx_status_t::SGX_SUCCESS;
+	let mut xthex = hex::encode(uxt);
+	xthex.insert_str(0, "0x");
 
-	let unchecked_extrinsic_size = EXTRINSIC_MAX_SIZE;
-	let mut unchecked_extrinsic: Vec<u8> = vec![0u8; unchecked_extrinsic_size as usize];
+	println!("{:?}",xthex);
+	// TODO: send extrinsic on chain
+	// println!("[>] Register the enclave (send the extrinsic)");
+	// let register_enclave_xt_hash = node_api.send_extrinsic(xthex, XtStatus::Finalized).unwrap();
+	// println!("[<] Extrinsic got finalized. Hash: {:?}\n", register_enclave_xt_hash);
 
-	let result = unsafe {
-		ffi::perform_ra(
-			enclave.geteid(),
-			&mut retval,
-			genesis_hash.as_ptr(),
-			genesis_hash.len() as u32,
-			&nonce,
-			trusted_url.as_ptr(),
-			trusted_url.len() as u32,
-			unchecked_extrinsic.as_mut_ptr(),
-			unchecked_extrinsic.len() as u32,
-		)
-	};
-
-	match result {
-		sgx_status_t::SGX_SUCCESS => {
-			println!("ECALL success!");
-		},
-		_ => {
-			println!("[-] ECALL Enclave Failed {}!", result.as_str());
-			return
-		},
-	}
-
-	// let mut sign_type = sgx_quote_sign_type_t::SGX_LINKABLE_SIGNATURE;
-	// let mut retval = sgx_status_t::SGX_SUCCESS;
-	// let result = unsafe { ffi::perform_ra(enclave.geteid(), &mut retval, sign_type) };
-	// match result {
-	// 	sgx_status_t::SGX_SUCCESS => {
-	// 		println!("ECALL success!");
-	// 	},
-	// 	_ => {
-	// 		println!("[-] ECALL Enclave Failed {}!", result.as_str());
-	// 		return
-	// 	},
-	// }
-
-	// let pubkey_size = 8192;
-	// let mut pubkey = vec![0u8; pubkey_size as usize];
-	//
-	// let mut retval = sgx_status_t::SGX_SUCCESS;
-	//
-	// let result = unsafe {
-	//     ffi::get_rsa_encryption_pubkey(
-	//         enclave.geteid(),
-	//         &mut retval,
-	//         pubkey.as_mut_ptr(),
-	//         pubkey.len() as u32,
-	//     )
-	// };
-	//
-	// let rsa_pubkey: Rsa3072PubKey =
-	//     serde_json::from_slice(pubkey.as_slice()).expect("Invalid public key");
-	// println!("got RSA pubkey {:?}", rsa_pubkey);
-	//
-	// //A bunch of data decrypted by time
-	// for i in 0..10 {
-	//     let mut retval = sgx_status_t::SGX_SUCCESS;
-	//     let mut private_key = String::from("I send a private_key");
-	//     private_key = private_key + &i.to_string();
-	//     let private_key_slice = &private_key.into_bytes();
-	//     let mut private_key_cipher = Vec::new();
-	//     match rsa_pubkey.encrypt_buffer(private_key_slice, &mut private_key_cipher) {
-	//         Ok(n) => println!("Generated payload {} bytes", n),
-	//         Err(x) => println!("Error occured during encryption {}", x),
-	//     }
-	//     let result = unsafe {
-	//         ffi::handle_private_keys(
-	//             enclave.geteid(),
-	//             &mut retval,
-	//             private_key_cipher.as_ptr() as *const u8,
-	//             private_key_cipher.len() as u32,
-	//             1667874198 + i,
-	//             2
-	//         )
-	//     };
-	//     println!("{:?}",result);
-	// }
-	// // Data that has not been decrypted in time
-	// for i in 10..15 {
-	//     let mut retval = sgx_status_t::SGX_SUCCESS;
-	//     let mut private_key = String::from("I send a private_key");
-	//     private_key = private_key + &i.to_string();
-	//     let private_key_slice = &private_key.into_bytes();
-	//     let mut private_key_cipher = Vec::new();
-	//     match rsa_pubkey.encrypt_buffer(private_key_slice, &mut private_key_cipher) {
-	//         Ok(n) => println!("Generated payload {} bytes", n),
-	//         Err(x) => println!("Error occured during encryption {}", x),
-	//     }
-	//     let result = unsafe {
-	//         ffi::handle_private_keys(
-	//             enclave.geteid(),
-	//             &mut retval,
-	//             private_key_cipher.as_ptr() as *const u8,
-	//             private_key_cipher.len() as u32,
-	//             1667983347 + i,
-	//             2
-	//         )
-	//     };
-	//     println!("{:?}",result);
-	// }
 	// TODO: Get account ID of current key-holder node.
 	// TODO: Send remote attestation as ext to the trex network.
 	// Spawn a thread to listen to the TREX data event.
@@ -272,6 +172,62 @@ fn main() {
 	enclave.destroy();
 }
 
+/// Get the remote attestation in the enclave and organize it into ext in the corresponding format of pallet-tee
+fn perform_ra(
+	enclave: &SgxEnclave,
+	genesis_hash: Vec<u8>,
+	nonce: u32,
+	w_url: Vec<u8>,
+) -> Result<Vec<u8>, Error> {
+	let mut retval = sgx_status_t::SGX_SUCCESS;
+
+	let unchecked_extrinsic_size = EXTRINSIC_MAX_SIZE;
+	let mut unchecked_extrinsic: Vec<u8> = vec![0u8; unchecked_extrinsic_size as usize];
+
+	let result = unsafe {
+		ffi::perform_ra(
+			enclave.geteid(),
+			&mut retval,
+			genesis_hash.as_ptr(),
+			genesis_hash.len() as u32,
+			&nonce,
+			w_url.as_ptr(),
+			w_url.len() as u32,
+			unchecked_extrinsic.as_mut_ptr(),
+			unchecked_extrinsic.len() as u32,
+		)
+	};
+
+	ensure!(result == sgx_status_t::SGX_SUCCESS, Error::Sgx(result));
+	ensure!(retval == sgx_status_t::SGX_SUCCESS, Error::Sgx(retval));
+
+	Ok(unchecked_extrinsic)
+}
+
+/// Put node metadata into enclave memory for temporary storage
+fn set_node_metadata(enclave: &SgxEnclave, metadata: Vec<u8>) {
+	let mut retval = sgx_status_t::SGX_SUCCESS;
+
+	let result = unsafe {
+		ffi::set_node_metadata(
+			enclave.geteid(),
+			&mut retval,
+			metadata.as_ptr(),
+			metadata.len() as u32,
+		)
+	};
+	match result {
+		sgx_status_t::SGX_SUCCESS => {
+			println!("ECALL Set Metadata Success!");
+		},
+		_ => {
+			println!("[-] ECALL Set Metadata Enclave Failed {}!", result.as_str());
+			return
+		},
+	}
+}
+
+/// Put the nonce of the account into the enclave memory for temporary storage
 fn set_nonce(enclave: &SgxEnclave, nonce: &u32) {
 	let mut retval = sgx_status_t::SGX_SUCCESS;
 	let result = unsafe { ffi::set_nonce(enclave.geteid(), &mut retval, nonce) };
@@ -286,6 +242,7 @@ fn set_nonce(enclave: &SgxEnclave, nonce: &u32) {
 	}
 }
 
+/// Obtain the nonce of the enclave account through rpc
 fn get_nonce(who: &AccountId32, config: &Config) -> Result<u32, ApiClientError> {
 	let url = format!("{}:{}", config.node_ip, config.node_port);
 	let client = WsRpcClient::new(&url);
@@ -293,6 +250,7 @@ fn get_nonce(who: &AccountId32, config: &Config) -> Result<u32, ApiClientError> 
 	Ok(api.get_account_info(who)?.map_or_else(|| 0, |info| info.nonce))
 }
 
+/// Obtain the genesis hash through rpc
 fn get_genesis_hash(config: &Config) -> Vec<u8> {
 	let url = format!("{}:{}", config.node_ip, config.node_port);
 	let client = WsRpcClient::new(&url);

@@ -19,7 +19,6 @@ static DEFAULT_NODE_SERVER: &str = "ws://127.0.0.1";
 static DEFAULT_NODE_PORT: &str = "9944";
 static DEFAULT_MU_RA_PORT: &str = "3443";
 static DEFAULT_METRICS_PORT: &str = "8787";
-static DEFAULT_UNTRUSTED_HTTP_PORT: &str = "4545";
 static DEFAULT_TRUSTED_PORT: &str = "2000";
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
