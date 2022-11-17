@@ -201,6 +201,7 @@ fn main() {
 			}
 		},
 		Action::ShieldingPubKey => {
+			// TODO: remove test out
 			println!("shielding pub key");
 			let rsa_pubkey = get_shielding_pubkey(&enclave);
 			let plaintext: Vec<u8> =
