@@ -60,4 +60,12 @@ extern "C" {
 		node_metadata: *const u8,
 		node_metadata_size: u32,
 	) -> sgx_status_t;
+
+	/// test decrypt cipher
+	pub fn test_decrypt(
+		eid: sgx_enclave_id_t,
+		retval: *mut sgx_status_t,
+		cipher: *const u8,
+		cipher_len: u32,
+	) -> sgx_status_t;
 }

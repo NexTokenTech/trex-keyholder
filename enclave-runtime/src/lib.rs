@@ -129,10 +129,9 @@ pub unsafe extern "C" fn get_rsa_encryption_pubkey(
 	let rsa_keypair: Rsa3072KeyPair = serde_json::from_str(&key_json_str).unwrap();
 
 	let rsa_pubkey: Rsa3072PubKey = rsa_keypair.export_pubkey().unwrap();
+
 	// Use unsafe method to copy the memory of public key.
-	let pubkey_exposed: LocalRsa3072PubKey = unsafe {
-		std::mem::transmute(rsa_pubkey)
-	};
+	let pubkey_exposed: LocalRsa3072PubKey = unsafe { std::mem::transmute(rsa_pubkey) };
 	let pubkey_slice = slice::from_raw_parts_mut(pubkey, pubkey_size as usize);
 	// copy the RSA modulus to the left part and public exponent to the right part.
 	let (left, right) = pubkey_slice.split_at_mut(SGX_RSA3072_KEY_SIZE);
@@ -259,6 +258,20 @@ pub unsafe extern "C" fn set_node_metadata(
 	sgx_status_t::SGX_SUCCESS
 }
 
+#[no_mangle]
+pub extern "C" fn test_decrypt(cipher: *const u8, cipher_len: u32) -> sgx_status_t {
+	let decrpyted_msg = get_decrypt_cipher_text(cipher, cipher_len as usize);
+	let mut rt: sgx_status_t = sgx_status_t::SGX_ERROR_UNEXPECTED;
+	let _res = unsafe {
+		ffi::ocall_output_key(
+			&mut rt as *mut sgx_status_t,
+			decrpyted_msg.as_ptr() as *const u8,
+			decrpyted_msg.len() as u32,
+		);
+	};
+	sgx_status_t::SGX_SUCCESS
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd)]
 pub struct Ext {
 	timestamp: u32,
@@ -301,9 +314,7 @@ fn get_json_str(filename: &str) -> String {
 	let key_json_str = match SgxFile::open(filename) {
 		Ok(mut f) => match f.read_to_end(&mut keyvec) {
 			Ok(_) => std::str::from_utf8(&keyvec).unwrap(),
-			Err(_) => {
-				return "".to_string()
-			},
+			Err(_) => return "".to_string(),
 		},
 		Err(_x) => std::str::from_utf8(&keyvec).unwrap(),
 	};

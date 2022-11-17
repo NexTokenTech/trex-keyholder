@@ -20,6 +20,7 @@ mod enclave;
 mod ocall_impl;
 mod utils;
 
+extern crate core;
 extern crate serde_json;
 extern crate sgx_crypto_helper;
 extern crate sgx_types;
@@ -30,13 +31,13 @@ use sgx_urts::SgxEnclave;
 
 use frame_system::EventRecord;
 use log::{debug, info};
+use serde_json::to_string;
 use sgx_crypto_helper::{
 	rsa3072::{Rsa3072KeyPair, Rsa3072PubKey},
 	RsaKeyPair,
 };
 use sp_runtime::generic::SignedBlock as SignedBlockG;
-use std::{sync::mpsc::channel, thread, time::Duration};
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::mpsc::channel, thread, time::Duration};
 use substrate_api_client::{
 	rpc::WsRpcClient, utils::FromHexString, Api, ApiClientError, AssetTipExtrinsicParams,
 	Header as HeaderTrait, Metadata, XtStatus,
@@ -50,7 +51,11 @@ use crate::enclave::error::Error;
 use config::Config;
 use enclave::{api::*, ffi};
 use frame_support::ensure;
-use sp_core::{crypto::AccountId32, ed25519, sr25519, Decode, H256 as Hash, Encode};
+use serde::{Deserialize, Serialize};
+use sp_core::{
+	crypto::{AccountId32, Ss58Codec},
+	ed25519, sr25519, Decode, Encode, H256 as Hash,
+};
 use tkp_settings::worker::EXTRINSIC_MAX_SIZE;
 use utils::node_metadata::NodeMetadata;
 
@@ -63,19 +68,28 @@ struct Args {
 	/// Path of config YAML file.
 	#[arg(short, long, default_value_t=("config.yml".to_string()))]
 	config: String,
+	#[command(subcommand)]
+	action: Action,
+}
+
+#[derive(clap::Subcommand, Debug)]
+enum Action {
+	Run,
+	ShieldingPubKey,
+	SigningPubKey,
+	GetFreeBalance,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct TempRsa3072PubKey {
+	pub n: Box<[u8]>,
+	pub e: Box<[u8]>,
 }
 
 fn main() {
 	// ------------------------------------------------------------------------
 	// Setup logging
 	env_logger::init();
-	// ------------------------------------------------------------------------
-	// load Config from config.yml
-	let args = Args::parse();
-	let config_path = PathBuf::from(args.config);
-	let config_f = std::fs::File::open(config_path).expect("Could not open file.");
-	let config: Config = serde_yaml::from_reader(config_f).expect("Could not read values.");
-	debug!("Loaded Config from YAML: {:#?}", config);
 	// ------------------------------------------------------------------------
 	// init enclave instance
 	let enclave = match enclave_init() {
@@ -88,95 +102,146 @@ fn main() {
 			return
 		},
 	};
-
 	// ------------------------------------------------------------------------
-	// Get the account ID of our TEE.
-	let tee_account_id = enclave_account(&enclave).unwrap();
+	// load Config from config.yml
+	let args = Args::parse();
+	match args.action {
+		Action::Run => {
+			let config_path = PathBuf::from(args.config);
+			let config_f = std::fs::File::open(config_path).expect("Could not open file.");
+			let config: Config = serde_yaml::from_reader(config_f).expect("Could not read values.");
+			debug!("Loaded Config from YAML: {:#?}", config);
 
-	// prepare websocket connection.
-	let url = config.node_url();
-	let client = WsRpcClient::new(&url);
-	let api = Api::<sr25519::Pair, _, AssetTipExtrinsicParams>::new(client).unwrap();
+			// ------------------------------------------------------------------------
+			// Get the account ID of our TEE.
+			let tee_account_id = enclave_account(&enclave).unwrap();
 
-	let genesis_hash = get_genesis_hash(&config);
+			// prepare websocket connection.
+			let url = config.node_url();
+			let client = WsRpcClient::new(&url);
+			let api = Api::<sr25519::Pair, _, AssetTipExtrinsicParams>::new(client).unwrap();
 
-	// ------------------------------------------------------------------------
-	// Perform a remote attestation and get an unchecked extrinsic back.
-	let nonce = get_nonce(&tee_account_id, &config).unwrap();
-	set_nonce(&enclave, &nonce);
+			let genesis_hash = get_genesis_hash(&config);
 
-	let metadata = api.metadata.clone();
-	let runtime_spec_version = api.runtime_version.spec_version;
-	let runtime_transaction_version = api.runtime_version.transaction_version;
+			// ------------------------------------------------------------------------
+			// Perform a remote attestation and get an unchecked extrinsic back.
+			let nonce = get_nonce(&tee_account_id, &config).unwrap();
+			set_nonce(&enclave, &nonce);
 
-	set_node_metadata(
-		&enclave,
-		NodeMetadata::new(metadata, runtime_spec_version, runtime_transaction_version).encode(),
-	);
+			let metadata = api.metadata.clone();
+			let runtime_spec_version = api.runtime_version.spec_version;
+			let runtime_transaction_version = api.runtime_version.transaction_version;
 
-	let trusted_url = config.mu_ra_url();
-	let uxt = perform_ra(&enclave, genesis_hash, nonce, trusted_url.as_bytes().to_vec()).unwrap();
+			set_node_metadata(
+				&enclave,
+				NodeMetadata::new(metadata, runtime_spec_version, runtime_transaction_version)
+					.encode(),
+			);
 
-	let mut xthex = hex::encode(uxt);
-	xthex.insert_str(0, "0x");
+			let trusted_url = config.mu_ra_url();
+			let uxt =
+				perform_ra(&enclave, genesis_hash, nonce, trusted_url.as_bytes().to_vec()).unwrap();
 
-	info!("Generated RA EXT");
-	// TODO: send extrinsic on chain
-	// println!("[>] Register the enclave (send the extrinsic)");
-	// let register_enclave_xt_hash = node_api.send_extrinsic(xthex, XtStatus::Finalized).unwrap();
-	// println!("[<] Extrinsic got finalized. Hash: {:?}\n", register_enclave_xt_hash);
+			let mut xthex = hex::encode(uxt);
+			xthex.insert_str(0, "0x");
 
-	// TODO: Get account ID of current key-holder node.
-	// TODO: Send remote attestation as ext to the trex network.
-	// Spawn a thread to listen to the TREX data event.
-	let event_url = url.clone();
-	let mut handlers = Vec::new();
-	handlers.push(thread::spawn(move || {
-		// Listen to TREXDataSent events.
-		let client = WsRpcClient::new(&event_url);
-		let api = Api::<sr25519::Pair, _, AssetTipExtrinsicParams>::new(client).unwrap();
-		println!("Subscribe to TREX events");
-		let (events_in, events_out) = channel();
-		api.subscribe_events(events_in).unwrap();
-		loop {
-			let event_str = events_out.recv().unwrap();
-			let _unhex = Vec::from_hex(event_str).unwrap();
-			let mut _er_enc = _unhex.as_slice();
-			let events = Vec::<EventRecord<RuntimeEvent, Hash>>::decode(&mut _er_enc).unwrap();
-			// match event with trex event
-			for event in &events {
-				debug!("decoded: {:?} {:?}", event.phase, event.event);
-				match &event.event {
-					// match to trex events.
-					RuntimeEvent::Trex(te) => {
-						debug!(">>>>>>>>>> TREX event: {:?}", te);
-						// match trex data sent event.
-						match &te {
-							TrexEvent::TREXDataSent(_id, _byte_data) => {
-								// TODO: deserialize TREX struct data and check key pieces.
-								todo!();
+			info!("Generated RA EXT");
+			// TODO: send extrinsic on chain
+			println!("[>] Register the enclave (send the extrinsic)");
+			let register_enclave_xt_hash = api.send_extrinsic(xthex, XtStatus::InBlock).unwrap();
+			println!("[<] Extrinsic got finalized. Hash: {:?}\n", register_enclave_xt_hash);
+
+			// TODO: Get account ID of current key-holder node.
+			// TODO: Send remote attestation as ext to the trex network.
+			// Spawn a thread to listen to the TREX data event.
+			let event_url = url.clone();
+			let mut handlers = Vec::new();
+			handlers.push(thread::spawn(move || {
+				// Listen to TREXDataSent events.
+				let client = WsRpcClient::new(&event_url);
+				let api = Api::<sr25519::Pair, _, AssetTipExtrinsicParams>::new(client).unwrap();
+				println!("Subscribe to TREX events");
+				let (events_in, events_out) = channel();
+				api.subscribe_events(events_in).unwrap();
+				loop {
+					let event_str = events_out.recv().unwrap();
+					let _unhex = Vec::from_hex(event_str).unwrap();
+					let mut _er_enc = _unhex.as_slice();
+					let events =
+						Vec::<EventRecord<RuntimeEvent, Hash>>::decode(&mut _er_enc).unwrap();
+					// match event with trex event
+					for event in &events {
+						debug!("decoded: {:?} {:?}", event.phase, event.event);
+						match &event.event {
+							// match to trex events.
+							RuntimeEvent::Trex(te) => {
+								debug!(">>>>>>>>>> TREX event: {:?}", te);
+								// match trex data sent event.
+								match &te {
+									TrexEvent::TREXDataSent(_id, _byte_data) => {
+										// TODO: deserialize TREX struct data and check key pieces.
+										todo!();
+									},
+									_ => {
+										debug!("ignoring unsupported TREX event");
+									},
+								}
 							},
-							_ => {
-								debug!("ignoring unsupported TREX event");
-							},
+							_ => debug!("ignoring unsupported module event: {:?}", event.event),
 						}
-					},
-					_ => debug!("ignoring unsupported module event: {:?}", event.event),
+					}
+					// wait 100 ms for next iteration
+					thread::sleep(Duration::from_millis(100));
 				}
+			}));
+			// TODO: check the enclave and release expired key pieces.
+			// join threads.
+			for handler in handlers {
+				handler.join().expect("The thread being joined has panicked");
 			}
-			// wait 100 ms for next iteration
-			thread::sleep(Duration::from_millis(100));
-		}
-	}));
-	// TODO: check the enclave and release expired key pieces.
-	// join threads.
-	for handler in handlers {
-		handler.join().expect("The thread being joined has panicked");
-	}
+		},
+		Action::ShieldingPubKey => {
+			println!("shielding pub key");
+			let rsa_pubkey = get_shielding_pubkey(&enclave);
+			let plaintext: Vec<u8> =
+				"test encrypt text and decrypt cipher".to_string().into_bytes();
+			let mut ciphertext: Vec<u8> = Vec::new();
+			rsa_pubkey.encrypt_buffer(&plaintext, &mut ciphertext).expect("Encrypt Error");
 
+			let mut retval = sgx_status_t::SGX_SUCCESS;
+			let res = unsafe {
+				ffi::test_decrypt(
+					enclave.geteid(),
+					&mut retval,
+					ciphertext.as_ptr(),
+					ciphertext.len() as u32,
+				);
+			};
+		},
+		Action::SigningPubKey => {
+			let tee_account_id = enclave_account(&enclave).unwrap();
+			println!("Enclave account {:} ", &tee_account_id.to_ss58check());
+		},
+		Action::GetFreeBalance => {
+			let config_path = PathBuf::from(args.config);
+			let config_f = std::fs::File::open(config_path).expect("Could not open file.");
+			let config: Config = serde_yaml::from_reader(config_f).expect("Could not read values.");
+			// prepare websocket connection.
+			let url = config.node_url();
+			let client = WsRpcClient::new(&url);
+			let api = Api::<sr25519::Pair, _, AssetTipExtrinsicParams>::new(client).unwrap();
+			// ------------------------------------------------------------------------
+			// Get the account ID of our TEE.
+			let tee_account_id = enclave_account(&enclave).unwrap();
+			// ------------------------------------------------------------------------
+			// Perform a remote attestation and get an unchecked extrinsic back.
+			let free_balance = get_free_balance(&tee_account_id, &config).unwrap();
+			println!("{:?}", free_balance);
+		},
+		_ => {},
+	}
 	enclave.destroy();
 }
-
 /// Get the remote attestation in the enclave and organize it into ext in the corresponding format of pallet-tee
 fn perform_ra(
 	enclave: &SgxEnclave,
@@ -207,6 +272,31 @@ fn perform_ra(
 	ensure!(retval == sgx_status_t::SGX_SUCCESS, Error::Sgx(retval));
 
 	Ok(unchecked_extrinsic)
+}
+
+/// get shielding pubkey from enclave
+fn get_shielding_pubkey(enclave: &SgxEnclave) -> Rsa3072PubKey {
+	let pubkey_size = SGX_RSA3072_KEY_SIZE + SGX_RSA3072_PUB_EXP_SIZE;
+	let mut pubkey = vec![0u8; pubkey_size as usize];
+	let mut retval = sgx_status_t::SGX_SUCCESS;
+	let result = unsafe {
+		ffi::get_rsa_encryption_pubkey(
+			enclave.geteid(),
+			&mut retval,
+			pubkey.as_mut_ptr(),
+			pubkey.len() as u32,
+		);
+	};
+
+	let (left, right) = pubkey.split_at(SGX_RSA3072_KEY_SIZE);
+	let pubkey_local = TempRsa3072PubKey { n: left.into(), e: right.into() };
+	let json = serde_json::to_string(&pubkey_local).unwrap();
+	let rsa_pubkey: Rsa3072PubKey =
+		serde_json::from_slice(json.as_bytes().to_vec().as_slice()).expect("Invalid public key");
+
+	info!("got RSA pubkey {:?}", rsa_pubkey);
+
+	rsa_pubkey
 }
 
 /// Put node metadata into enclave memory for temporary storage
@@ -253,6 +343,15 @@ fn get_nonce(who: &AccountId32, config: &Config) -> Result<u32, ApiClientError> 
 	let client = WsRpcClient::new(&url);
 	let api = Api::<sr25519::Pair, _, AssetTipExtrinsicParams>::new(client).unwrap();
 	Ok(api.get_account_info(who)?.map_or_else(|| 0, |info| info.nonce))
+}
+
+/// Obtain the free balance of the enclave account through rpc
+fn get_free_balance(who: &AccountId32, config: &Config) -> Result<u128, ApiClientError> {
+	let url = format!("{}:{}", config.node_ip, config.node_port);
+	let client = WsRpcClient::new(&url);
+	let api = Api::<sr25519::Pair, _, AssetTipExtrinsicParams>::new(client).unwrap();
+	// Ok(api.get_account_info(who)?.map_or_else(|| 0, |info| info.nonce))
+	Ok(api.get_account_data(who)?.map_or_else(|| 0, |data| data.free))
 }
 
 /// Obtain the genesis hash through rpc
