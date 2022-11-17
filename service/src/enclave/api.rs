@@ -4,7 +4,15 @@ use sgx_urts::SgxEnclave;
 /// keep this api free from chain-specific types!
 use std::io::{Read, Write};
 use std::{fs::File, path::PathBuf};
+use frame_support::ensure;
+use serde_derive::{Deserialize, Serialize};
+use sgx_crypto_helper::rsa3072::Rsa3072PubKey;
+use sp_core::crypto::AccountId32;
+use sp_core::ed25519;
 use tkp_settings::files::{ENCLAVE_FILE, ENCLAVE_TOKEN};
+use tkp_settings::worker::EXTRINSIC_MAX_SIZE;
+use crate::enclave::error::Error;
+use crate::enclave::ffi;
 
 /// init enclave
 pub fn enclave_init() -> SgxResult<SgxEnclave> {
@@ -80,4 +88,114 @@ pub fn enclave_init() -> SgxResult<SgxEnclave> {
 		}
 	}
 	enclave
+}
+
+/// Get the remote attestation in the enclave and organize it into ext in the corresponding format of pallet-tee
+pub fn perform_ra(
+	enclave: &SgxEnclave,
+	genesis_hash: Vec<u8>,
+	nonce: u32,
+	w_url: Vec<u8>,
+) -> Result<Vec<u8>, Error> {
+	let mut retval = sgx_status_t::SGX_SUCCESS;
+
+	let unchecked_extrinsic_size = EXTRINSIC_MAX_SIZE;
+	let mut unchecked_extrinsic: Vec<u8> = vec![0u8; unchecked_extrinsic_size as usize];
+
+	let result = unsafe {
+		ffi::perform_ra(
+			enclave.geteid(),
+			&mut retval,
+			genesis_hash.as_ptr(),
+			genesis_hash.len() as u32,
+			&nonce,
+			w_url.as_ptr(),
+			w_url.len() as u32,
+			unchecked_extrinsic.as_mut_ptr(),
+			unchecked_extrinsic.len() as u32,
+		)
+	};
+
+	ensure!(result == sgx_status_t::SGX_SUCCESS, Error::Sgx(result));
+	ensure!(retval == sgx_status_t::SGX_SUCCESS, Error::Sgx(retval));
+
+	Ok(unchecked_extrinsic)
+}
+
+/// get shielding pubkey from enclave
+pub fn get_shielding_pubkey(enclave: &SgxEnclave) -> Rsa3072PubKey {
+	let mut pubkey = [0u8; SGX_RSA3072_KEY_SIZE + SGX_RSA3072_PUB_EXP_SIZE];
+	let mut retval = sgx_status_t::SGX_SUCCESS;
+	unsafe {
+		ffi::get_rsa_encryption_pubkey(
+			enclave.geteid(),
+			&mut retval,
+			pubkey.as_mut_ptr(),
+			pubkey.len() as u32,
+		);
+	};
+	let rsa_pubkey: Rsa3072PubKey = unsafe {std::mem::transmute(pubkey)};
+	debug!("Enclave's RSA pubkey:\n{:?}", rsa_pubkey);
+	rsa_pubkey
+}
+
+/// Put node metadata into enclave memory for temporary storage
+pub fn set_node_metadata(enclave: &SgxEnclave, metadata: Vec<u8>) {
+	let mut retval = sgx_status_t::SGX_SUCCESS;
+
+	let result = unsafe {
+		ffi::set_node_metadata(
+			enclave.geteid(),
+			&mut retval,
+			metadata.as_ptr(),
+			metadata.len() as u32,
+		)
+	};
+	match result {
+		sgx_status_t::SGX_SUCCESS => {
+			println!("ECALL Set Metadata Success!");
+		},
+		_ => {
+			println!("[-] ECALL Set Metadata Enclave Failed {}!", result.as_str());
+			return
+		},
+	}
+}
+
+/// Put the nonce of the account into the enclave memory for temporary storage
+pub fn set_nonce(enclave: &SgxEnclave, nonce: &u32) {
+	let mut retval = sgx_status_t::SGX_SUCCESS;
+	let result = unsafe { ffi::set_nonce(enclave.geteid(), &mut retval, nonce) };
+	match result {
+		sgx_status_t::SGX_SUCCESS => {
+			println!("ECALL Set Nonce Success!");
+		},
+		_ => {
+			println!("[-] ECALL Set Nonce Enclave Failed {}!", result.as_str());
+			return
+		},
+	}
+}
+
+
+/// Get the public signing key of the TEE.
+pub fn enclave_account(enclave: &SgxEnclave) -> Result<AccountId32, Error> {
+	let mut retval = sgx_status_t::SGX_SUCCESS;
+	let mut pubkey = [0u8; 32 as usize];
+
+	let result = unsafe {
+		ffi::get_ecc_signing_pubkey(
+			enclave.geteid(),
+			&mut retval,
+			pubkey.as_mut_ptr(),
+			pubkey.len() as u32,
+		)
+	};
+
+	ensure!(result == sgx_status_t::SGX_SUCCESS, Error::Sgx(result));
+	ensure!(retval == sgx_status_t::SGX_SUCCESS, Error::Sgx(retval));
+
+	let pubkey = ed25519::Public::from_raw(pubkey);
+	let tee_account_id = AccountId32::from(*pubkey.as_array_ref());
+	Ok(tee_account_id)
 }

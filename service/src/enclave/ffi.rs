@@ -65,7 +65,10 @@ extern "C" {
 	pub fn test_decrypt(
 		eid: sgx_enclave_id_t,
 		retval: *mut sgx_status_t,
+		plain: *const u8,
+		plain_len: u32,
 		cipher: *const u8,
 		cipher_len: u32,
+		res: *mut u8,
 	) -> sgx_status_t;
 }

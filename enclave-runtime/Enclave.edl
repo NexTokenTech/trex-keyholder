@@ -48,7 +48,11 @@ enclave {
         public sgx_status_t set_node_metadata(
                                     [in, size=node_metadata_size] uint8_t* node_metadata, uint32_t node_metadata_size
                                 );
-        public sgx_status_t test_decrypt([in, size=cipher_len] const uint8_t* cipher, size_t cipher_len);
+        public sgx_status_t test_decrypt(
+                                    [in, size=plain_len] const uint8_t* plain, size_t plain_len,
+                                    [in, size=cipher_len] const uint8_t* cipher, size_t cipher_len,
+                                    [out] uint8_t* res
+                                );
     };
     untrusted {
     	sgx_status_t ocall_output_key([in, size=key_len] const uint8_t* key, size_t key_len);

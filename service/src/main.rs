@@ -19,6 +19,8 @@ mod config;
 mod enclave;
 mod ocall_impl;
 mod utils;
+#[cfg(test)]
+mod test;
 
 extern crate core;
 extern crate serde_json;
@@ -27,36 +29,27 @@ extern crate sgx_types;
 extern crate sgx_urts;
 
 use sgx_types::*;
-use sgx_urts::SgxEnclave;
-
 use frame_system::EventRecord;
 use log::{debug, info};
-use serde_json::to_string;
-use sgx_crypto_helper::{
-	rsa3072::{Rsa3072KeyPair, Rsa3072PubKey},
-	RsaKeyPair,
-};
-use sp_runtime::generic::SignedBlock as SignedBlockG;
+// use sp_runtime::generic::SignedBlock as SignedBlockG;
 use std::{path::PathBuf, sync::mpsc::channel, thread, time::Duration};
 use substrate_api_client::{
-	rpc::WsRpcClient, utils::FromHexString, Api, ApiClientError, AssetTipExtrinsicParams,
-	Header as HeaderTrait, Metadata, XtStatus,
+	rpc::WsRpcClient, utils::FromHexString, Api, AssetTipExtrinsicParams, XtStatus,
 };
+use utils::node_rpc::{get_api, get_free_balance, get_nonce, get_genesis_hash};
 
 // trex modules
 use pallet_trex::Event as TrexEvent;
 use trex_runtime::RuntimeEvent;
 // local modules
-use crate::enclave::error::Error;
 use config::Config;
 use enclave::{api::*, ffi};
 use frame_support::ensure;
 use serde::{Deserialize, Serialize};
 use sp_core::{
-	crypto::{AccountId32, Ss58Codec},
-	ed25519, sr25519, Decode, Encode, H256 as Hash,
+	crypto::Ss58Codec,
+	sr25519, Decode, Encode, H256 as Hash,
 };
-use tkp_settings::worker::EXTRINSIC_MAX_SIZE;
 use utils::node_metadata::NodeMetadata;
 
 use clap::Parser;
@@ -80,10 +73,10 @@ enum Action {
 	GetFreeBalance,
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct TempRsa3072PubKey {
-	pub n: Box<[u8]>,
-	pub e: Box<[u8]>,
+fn load_config_from_file(path_str: &str) -> Config {
+	let config_path = PathBuf::from(path_str);
+	let config_f = std::fs::File::open(config_path).expect("Could not open file.");
+	serde_yaml::from_reader(config_f).expect("Could not read values.")
 }
 
 fn main() {
@@ -107,9 +100,7 @@ fn main() {
 	let args = Args::parse();
 	match args.action {
 		Action::Run => {
-			let config_path = PathBuf::from(args.config);
-			let config_f = std::fs::File::open(config_path).expect("Could not open file.");
-			let config: Config = serde_yaml::from_reader(config_f).expect("Could not read values.");
+			let config: Config = load_config_from_file(&args.config);
 			debug!("Loaded Config from YAML: {:#?}", config);
 
 			// ------------------------------------------------------------------------
@@ -117,10 +108,7 @@ fn main() {
 			let tee_account_id = enclave_account(&enclave).unwrap();
 
 			// prepare websocket connection.
-			let url = config.node_url();
-			let client = WsRpcClient::new(&url);
-			let api = Api::<sr25519::Pair, _, AssetTipExtrinsicParams>::new(client).unwrap();
-
+			let api = get_api(&config).unwrap();
 			let genesis_hash = get_genesis_hash(&config);
 
 			// ------------------------------------------------------------------------
@@ -154,7 +142,7 @@ fn main() {
 			// TODO: Get account ID of current key-holder node.
 			// TODO: Send remote attestation as ext to the trex network.
 			// Spawn a thread to listen to the TREX data event.
-			let event_url = url.clone();
+			let event_url = config.node_url();
 			let mut handlers = Vec::new();
 			handlers.push(thread::spawn(move || {
 				// Listen to TREXDataSent events.
@@ -202,186 +190,25 @@ fn main() {
 		},
 		Action::ShieldingPubKey => {
 			// TODO: remove test out
-			println!("shielding pub key");
+			println!("Generating shielding pub key");
 			let rsa_pubkey = get_shielding_pubkey(&enclave);
-			let plaintext: Vec<u8> =
-				"test encrypt text and decrypt cipher".to_string().into_bytes();
-			let mut ciphertext: Vec<u8> = Vec::new();
-			rsa_pubkey.encrypt_buffer(&plaintext, &mut ciphertext).expect("Encrypt Error");
-
-			let mut retval = sgx_status_t::SGX_SUCCESS;
-			let res = unsafe {
-				ffi::test_decrypt(
-					enclave.geteid(),
-					&mut retval,
-					ciphertext.as_ptr(),
-					ciphertext.len() as u32,
-				);
-			};
+			let json = serde_json::to_string(&rsa_pubkey).unwrap();
+			println!("RSA public key: {json}");
 		},
 		Action::SigningPubKey => {
 			let tee_account_id = enclave_account(&enclave).unwrap();
 			println!("Enclave account {:} ", &tee_account_id.to_ss58check());
 		},
 		Action::GetFreeBalance => {
-			let config_path = PathBuf::from(args.config);
-			let config_f = std::fs::File::open(config_path).expect("Could not open file.");
-			let config: Config = serde_yaml::from_reader(config_f).expect("Could not read values.");
-			// prepare websocket connection.
-			let url = config.node_url();
-			let client = WsRpcClient::new(&url);
-			let api = Api::<sr25519::Pair, _, AssetTipExtrinsicParams>::new(client).unwrap();
-			// ------------------------------------------------------------------------
+			// load node config.
+			let config: Config = load_config_from_file(&args.config);
 			// Get the account ID of our TEE.
 			let tee_account_id = enclave_account(&enclave).unwrap();
-			// ------------------------------------------------------------------------
 			// Perform a remote attestation and get an unchecked extrinsic back.
 			let free_balance = get_free_balance(&tee_account_id, &config).unwrap();
 			println!("{:?}", free_balance);
 		},
-		_ => {},
 	}
 	enclave.destroy();
 }
-/// Get the remote attestation in the enclave and organize it into ext in the corresponding format of pallet-tee
-fn perform_ra(
-	enclave: &SgxEnclave,
-	genesis_hash: Vec<u8>,
-	nonce: u32,
-	w_url: Vec<u8>,
-) -> Result<Vec<u8>, Error> {
-	let mut retval = sgx_status_t::SGX_SUCCESS;
 
-	let unchecked_extrinsic_size = EXTRINSIC_MAX_SIZE;
-	let mut unchecked_extrinsic: Vec<u8> = vec![0u8; unchecked_extrinsic_size as usize];
-
-	let result = unsafe {
-		ffi::perform_ra(
-			enclave.geteid(),
-			&mut retval,
-			genesis_hash.as_ptr(),
-			genesis_hash.len() as u32,
-			&nonce,
-			w_url.as_ptr(),
-			w_url.len() as u32,
-			unchecked_extrinsic.as_mut_ptr(),
-			unchecked_extrinsic.len() as u32,
-		)
-	};
-
-	ensure!(result == sgx_status_t::SGX_SUCCESS, Error::Sgx(result));
-	ensure!(retval == sgx_status_t::SGX_SUCCESS, Error::Sgx(retval));
-
-	Ok(unchecked_extrinsic)
-}
-
-/// get shielding pubkey from enclave
-fn get_shielding_pubkey(enclave: &SgxEnclave) -> Rsa3072PubKey {
-	let pubkey_size = SGX_RSA3072_KEY_SIZE + SGX_RSA3072_PUB_EXP_SIZE;
-	let mut pubkey = vec![0u8; pubkey_size as usize];
-	let mut retval = sgx_status_t::SGX_SUCCESS;
-	let result = unsafe {
-		ffi::get_rsa_encryption_pubkey(
-			enclave.geteid(),
-			&mut retval,
-			pubkey.as_mut_ptr(),
-			pubkey.len() as u32,
-		);
-	};
-
-	let (left, right) = pubkey.split_at(SGX_RSA3072_KEY_SIZE);
-	let pubkey_local = TempRsa3072PubKey { n: left.into(), e: right.into() };
-	let json = serde_json::to_string(&pubkey_local).unwrap();
-	let rsa_pubkey: Rsa3072PubKey =
-		serde_json::from_slice(json.as_bytes().to_vec().as_slice()).expect("Invalid public key");
-
-	info!("got RSA pubkey {:?}", rsa_pubkey);
-
-	rsa_pubkey
-}
-
-/// Put node metadata into enclave memory for temporary storage
-fn set_node_metadata(enclave: &SgxEnclave, metadata: Vec<u8>) {
-	let mut retval = sgx_status_t::SGX_SUCCESS;
-
-	let result = unsafe {
-		ffi::set_node_metadata(
-			enclave.geteid(),
-			&mut retval,
-			metadata.as_ptr(),
-			metadata.len() as u32,
-		)
-	};
-	match result {
-		sgx_status_t::SGX_SUCCESS => {
-			println!("ECALL Set Metadata Success!");
-		},
-		_ => {
-			println!("[-] ECALL Set Metadata Enclave Failed {}!", result.as_str());
-			return
-		},
-	}
-}
-
-/// Put the nonce of the account into the enclave memory for temporary storage
-fn set_nonce(enclave: &SgxEnclave, nonce: &u32) {
-	let mut retval = sgx_status_t::SGX_SUCCESS;
-	let result = unsafe { ffi::set_nonce(enclave.geteid(), &mut retval, nonce) };
-	match result {
-		sgx_status_t::SGX_SUCCESS => {
-			println!("ECALL Set Nonce Success!");
-		},
-		_ => {
-			println!("[-] ECALL Set Nonce Enclave Failed {}!", result.as_str());
-			return
-		},
-	}
-}
-
-/// Obtain the nonce of the enclave account through rpc
-fn get_nonce(who: &AccountId32, config: &Config) -> Result<u32, ApiClientError> {
-	let url = format!("{}:{}", config.node_ip, config.node_port);
-	let client = WsRpcClient::new(&url);
-	let api = Api::<sr25519::Pair, _, AssetTipExtrinsicParams>::new(client).unwrap();
-	Ok(api.get_account_info(who)?.map_or_else(|| 0, |info| info.nonce))
-}
-
-/// Obtain the free balance of the enclave account through rpc
-fn get_free_balance(who: &AccountId32, config: &Config) -> Result<u128, ApiClientError> {
-	let url = format!("{}:{}", config.node_ip, config.node_port);
-	let client = WsRpcClient::new(&url);
-	let api = Api::<sr25519::Pair, _, AssetTipExtrinsicParams>::new(client).unwrap();
-	// Ok(api.get_account_info(who)?.map_or_else(|| 0, |info| info.nonce))
-	Ok(api.get_account_data(who)?.map_or_else(|| 0, |data| data.free))
-}
-
-/// Obtain the genesis hash through rpc
-fn get_genesis_hash(config: &Config) -> Vec<u8> {
-	let url = format!("{}:{}", config.node_ip, config.node_port);
-	let client = WsRpcClient::new(&url);
-	let api = Api::<sr25519::Pair, _, AssetTipExtrinsicParams>::new(client).unwrap();
-	let genesis_hash = Some(api.get_genesis_hash().expect("Failed to get genesis hash"));
-	genesis_hash.unwrap().as_bytes().to_vec()
-}
-
-/// Get the public signing key of the TEE.
-fn enclave_account(enclave: &SgxEnclave) -> Result<AccountId32, Error> {
-	let mut retval = sgx_status_t::SGX_SUCCESS;
-	let mut pubkey = [0u8; 32 as usize];
-
-	let result = unsafe {
-		ffi::get_ecc_signing_pubkey(
-			enclave.geteid(),
-			&mut retval,
-			pubkey.as_mut_ptr(),
-			pubkey.len() as u32,
-		)
-	};
-
-	ensure!(result == sgx_status_t::SGX_SUCCESS, Error::Sgx(result));
-	ensure!(retval == sgx_status_t::SGX_SUCCESS, Error::Sgx(retval));
-
-	let pubkey = ed25519::Public::from_raw(pubkey);
-	let tee_account_id = AccountId32::from(*pubkey.as_array_ref());
-	Ok(tee_account_id)
-}
