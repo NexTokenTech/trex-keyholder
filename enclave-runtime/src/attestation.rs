@@ -2,12 +2,16 @@ use crate::{cert, hex, ocall::ffi};
 use core::default::Default;
 use itertools::Itertools;
 
+use crate::{
+	get_rsa_encryption_pubkey, utils::node_metadata::NodeMetadata, write_slice_and_whitespace_pad,
+	Error, NODE_META_DATA,
+};
 use log::*;
 use sgx_rand::*;
 use sgx_tcrypto::*;
 use sgx_tse::*;
-use sgx_types::*;
-use sp_core::{blake2_256, Pair};
+use sgx_types::{SGX_RSA3072_KEY_SIZE, *};
+use sp_core::{blake2_256, Decode, Encode, Pair};
 use std::{
 	io::{Read, Write},
 	net::TcpStream,
@@ -20,16 +24,12 @@ use std::{
 };
 #[allow(unused)]
 pub use substrate_api_client::{
-	compose_extrinsic_offline, ExtrinsicParams,
-	PlainTip, PlainTipExtrinsicParams, PlainTipExtrinsicParamsBuilder, SubstrateDefaultSignedExtra,
-	UncheckedExtrinsicV4,
+	compose_extrinsic_offline, ExtrinsicParams, PlainTip, PlainTipExtrinsicParams,
+	PlainTipExtrinsicParamsBuilder, SubstrateDefaultSignedExtra, UncheckedExtrinsicV4,
 };
+use tkp_settings::files::{RA_API_KEY_FILE, RA_SPID_FILE};
 use tkp_sgx_crypto::Ed25519Seal;
 use tkp_sgx_io::StaticSealedIO;
-use crate::utils::node_metadata::*;
-use crate::{NODE_META_DATA,write_slice_and_whitespace_pad};
-use sp_core::{Decode,Encode};
-use crate::Error;
 
 pub const DEV_HOSTNAME: &'static str = "api.trustedservices.intel.com";
 pub const SIGRL_SUFFIX: &'static str = "/sgx/dev/attestation/v4/sigrl/";
@@ -61,7 +61,7 @@ pub unsafe extern "C" fn perform_ra(
 
 	let (attn_report, sig, cert) = match create_attestation_report(&pub_k, sign_type) {
 		Ok(r) => {
-			debug!("Success in create_attestation_report: {:?}", r);
+			println!("Success in create_attestation_report: {:?}", r);
 			r
 		},
 		Err(e) => {
@@ -99,11 +99,12 @@ pub unsafe extern "C" fn perform_ra(
 
 	let node_metadata_slice_mem = NODE_META_DATA.lock().unwrap();
 
-	let mut metadata_slice:Vec<u8> = Vec::<u8>::new();
-	for (_, item) in node_metadata_slice_mem.iter().enumerate(){
+	let mut metadata_slice: Vec<u8> = Vec::<u8>::new();
+	for (_, item) in node_metadata_slice_mem.iter().enumerate() {
 		metadata_slice.push(*item);
 	}
-	let metadata = match NodeMetadata::decode(&mut metadata_slice.as_slice()).map_err(Error::Codec) {
+	let metadata = match NodeMetadata::decode(&mut metadata_slice.as_slice()).map_err(Error::Codec)
+	{
 		Err(e) => {
 			error!("Failed to decode node metadata: {:?}", e);
 			return sgx_status_t::SGX_ERROR_UNEXPECTED
@@ -111,12 +112,11 @@ pub unsafe extern "C" fn perform_ra(
 		Ok(m) => m,
 	};
 
-	let (register_enclave_call, runtime_spec_version, runtime_transaction_version) =
-		(
-			metadata.call_indexes("Tee", "register_enclave"),
-			metadata.get_runtime_version(),
-			metadata.get_runtime_transaction_version(),
-		);
+	let (register_enclave_call, runtime_spec_version, runtime_transaction_version) = (
+		metadata.call_indexes("Tee", "register_enclave"),
+		metadata.get_runtime_version(),
+		metadata.get_runtime_transaction_version(),
+	);
 
 	let call =
 		match register_enclave_call {
@@ -134,11 +134,16 @@ pub unsafe extern "C" fn perform_ra(
 		genesis_hash,
 		PlainTipExtrinsicParamsBuilder::default(),
 	);
-	// TODO: add shielding key to call
+	// Generate shielding pubkey. This vector contains two parts, the first part is rsa modules
+	// (384 bytes), the second part is the public exponent (4 bytes).
+	let pubkey_size = SGX_RSA3072_KEY_SIZE + SGX_RSA3072_PUB_EXP_SIZE;
+	let mut pubkey = vec![0u8; pubkey_size as usize];
+	get_rsa_encryption_pubkey(pubkey.as_mut_ptr(), pubkey.len() as u32);
+	info!("RSA pub key: {:?}", pubkey);
 	#[allow(clippy::redundant_clone)]
 	let xt = compose_extrinsic_offline!(
 		signer,
-		(call, cert_der.to_vec(), url_slice.to_vec()),
+		(call, cert_der.to_vec(), url_slice.to_vec(), pubkey.to_vec()),
 		extrinsic_params
 	);
 
@@ -147,12 +152,10 @@ pub unsafe extern "C" fn perform_ra(
 	debug!("[Enclave] Encoded extrinsic ( len = {} B), hash {:?}", xt_encoded.len(), xt_hash);
 
 	match write_slice_and_whitespace_pad(extrinsic_slice, xt_encoded) {
-		Ok(_) => {
-
-		},
+		Ok(_) => {},
 		Err(e) => {
-			println!("Result Error {:?}",e);
-		}
+			println!("Result Error {:?}", e);
+		},
 	};
 
 	sgx_status_t::SGX_SUCCESS
@@ -467,7 +470,7 @@ pub fn create_attestation_report(
 	let p_report = (&rep.unwrap()) as *const sgx_report_t;
 	let quote_type = sign_type;
 
-	let spid: sgx_spid_t = load_spid("spid.txt");
+	let spid: sgx_spid_t = load_spid(RA_SPID_FILE);
 
 	let p_spid = &spid as *const sgx_spid_t;
 	let p_nonce = &quote_nonce as *const sgx_quote_nonce_t;
@@ -576,7 +579,7 @@ fn load_spid(filename: &str) -> sgx_spid_t {
 }
 
 fn get_ias_api_key() -> String {
-	let mut keyfile = fs::File::open("key.txt").expect("cannot open ias key file");
+	let mut keyfile = fs::File::open(RA_API_KEY_FILE).expect("cannot open ias key file");
 	let mut key = String::new();
 	keyfile.read_to_string(&mut key).expect("cannot read the ias key file");
 
