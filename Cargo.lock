@@ -223,7 +223,7 @@ checksum = "b645a089122eccb6111b4f81cbc1a49f5900ac4666bb93ac027feaecf15607bf"
 [[package]]
 name = "benchmarking-primitives"
 version = "0.1.0"
-source = "git+https://github.com/NexTokenTech/TREX?branch=main#a855be0c4ae1629fded2d709844ac18978350b5f"
+source = "git+https://github.com/NexTokenTech/TREX?branch=add_shielding_pubkey#3959a40c1466937287caad1e6ce739fb955ccc1b"
 dependencies = [
  "frame-benchmarking",
  "frame-system",
@@ -1370,7 +1370,7 @@ dependencies = [
 [[package]]
 name = "ias-verify"
 version = "0.1.4"
-source = "git+https://github.com/NexTokenTech/TREX?branch=main#a855be0c4ae1629fded2d709844ac18978350b5f"
+source = "git+https://github.com/NexTokenTech/TREX?branch=add_shielding_pubkey#3959a40c1466937287caad1e6ce739fb955ccc1b"
 dependencies = [
  "base64",
  "chrono",
@@ -2056,7 +2056,7 @@ dependencies = [
 [[package]]
 name = "pallet-tee"
 version = "0.1.0-dev"
-source = "git+https://github.com/NexTokenTech/TREX?branch=main#a855be0c4ae1629fded2d709844ac18978350b5f"
+source = "git+https://github.com/NexTokenTech/TREX?branch=add_shielding_pubkey#3959a40c1466937287caad1e6ce739fb955ccc1b"
 dependencies = [
  "benchmarking-primitives",
  "frame-support",
@@ -2121,12 +2121,13 @@ dependencies = [
 [[package]]
 name = "pallet-trex"
 version = "0.1.0-dev"
-source = "git+https://github.com/NexTokenTech/TREX?branch=main#a855be0c4ae1629fded2d709844ac18978350b5f"
+source = "git+https://github.com/NexTokenTech/TREX?branch=add_shielding_pubkey#3959a40c1466937287caad1e6ce739fb955ccc1b"
 dependencies = [
  "benchmarking-primitives",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
+ "pallet-timestamp",
  "parity-scale-codec",
  "scale-info",
  "sp-std",
@@ -3751,7 +3752,7 @@ checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
 [[package]]
 name = "tee-primitives"
 version = "0.1.0"
-source = "git+https://github.com/NexTokenTech/TREX?branch=main#a855be0c4ae1629fded2d709844ac18978350b5f"
+source = "git+https://github.com/NexTokenTech/TREX?branch=add_shielding_pubkey#3959a40c1466937287caad1e6ce739fb955ccc1b"
 dependencies = [
  "ias-verify",
  "parity-scale-codec",
@@ -3951,6 +3952,7 @@ dependencies = [
  "log",
  "pallet-trex",
  "parity-scale-codec",
+ "rand 0.8.5",
  "serde",
  "serde_derive",
  "serde_json",
@@ -3963,6 +3965,7 @@ dependencies = [
  "substrate-api-client",
  "thiserror",
  "tkp-settings",
+ "trex-primitives",
  "trex-runtime",
  "ws",
 ]
@@ -3970,7 +3973,7 @@ dependencies = [
 [[package]]
 name = "trex-primitives"
 version = "0.1.0"
-source = "git+https://github.com/NexTokenTech/TREX?branch=main#a855be0c4ae1629fded2d709844ac18978350b5f"
+source = "git+https://github.com/NexTokenTech/TREX?branch=add_shielding_pubkey#3959a40c1466937287caad1e6ce739fb955ccc1b"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
@@ -3983,7 +3986,7 @@ dependencies = [
 [[package]]
 name = "trex-runtime"
 version = "4.0.0-dev"
-source = "git+https://github.com/NexTokenTech/TREX?branch=main#a855be0c4ae1629fded2d709844ac18978350b5f"
+source = "git+https://github.com/NexTokenTech/TREX?branch=add_shielding_pubkey#3959a40c1466937287caad1e6ce739fb955ccc1b"
 dependencies = [
  "frame-benchmarking",
  "frame-executive",
