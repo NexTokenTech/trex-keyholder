@@ -42,7 +42,7 @@ use utils::node_rpc::{get_api, get_free_balance, get_genesis_hash, get_nonce};
 use trex_runtime::{pallet_trex::Event as TrexEvent, RuntimeEvent};
 use trex_primitives::{ShieldedKey,KeyPiece};
 // local modules
-use config::Config;
+use config::Config as ApiConfig;
 use enclave::{api::*, ffi};
 use frame_support::ensure;
 use serde::{Deserialize, Serialize};
@@ -71,17 +71,9 @@ enum Action {
 	GetFreeBalance
 }
 
-fn load_config_from_file(path_str: &str) -> Config {
-	let config_path = PathBuf::from(path_str);
-	let config_f = std::fs::File::open(config_path).expect("Could not open file.");
-	serde_yaml::from_reader(config_f).expect("Could not read values.")
-}
-
 fn main() {
-	// ------------------------------------------------------------------------
 	// Setup logging
 	env_logger::init();
-	// ------------------------------------------------------------------------
 	// init enclave instance
 	let enclave = match enclave_init() {
 		Ok(r) => {
@@ -93,12 +85,11 @@ fn main() {
 			return
 		},
 	};
-	// ------------------------------------------------------------------------
 	// load Config from config.yml
 	let args = Args::parse();
 	match args.action {
 		Action::Run => {
-			let config: Config = load_config_from_file(&args.config);
+			let config = ApiConfig::from_yaml(&args.config);
 			debug!("Loaded Config from YAML: {:#?}", config);
 
 			// ------------------------------------------------------------------------
@@ -155,7 +146,7 @@ fn main() {
 						match parse_events(msg.clone()) {
 							Ok(events) => {
 								for event in &events {
-									debug!("decoded: {:?} {:?}", event.phase, event.event);
+									debug!("decoded: {:?}", event.event);
 									match &event.event {
 										// match to trex events.
 										RuntimeEvent::Trex(te) => {
@@ -163,7 +154,7 @@ fn main() {
 											// match trex data sent event.
 											match &te {
 												TrexEvent::TREXDataSent(
-													id,
+													_id,
 													byte_data,
 													_,
 												) => {
@@ -205,7 +196,6 @@ fn main() {
 			}
 		},
 		Action::ShieldingPubKey => {
-			// TODO: remove test out
 			println!("Generating shielding pub key");
 			let rsa_pubkey = get_shielding_pubkey(&enclave);
 			let json = serde_json::to_string(&rsa_pubkey).unwrap();
@@ -217,7 +207,7 @@ fn main() {
 		},
 		Action::GetFreeBalance => {
 			// load node config.
-			let config: Config = load_config_from_file(&args.config);
+			let config = ApiConfig::from_yaml(&args.config);
 			// Get the account ID of our TEE.
 			let tee_account_id = enclave_account(&enclave).unwrap();
 			// Perform a remote attestation and get an unchecked extrinsic back.
@@ -228,7 +218,7 @@ fn main() {
 	enclave.destroy();
 }
 
-type Events = Vec<frame_system::EventRecord<RuntimeEvent, Hash>>;
+type Events = Vec<EventRecord<RuntimeEvent, Hash>>;
 
 fn parse_events(event: String) -> Result<Events, String> {
 	let _unhex = Vec::from_hex(event).map_err(|_| "Decoding Events Failed".to_string())?;

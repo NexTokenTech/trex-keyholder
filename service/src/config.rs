@@ -12,6 +12,7 @@
     See the License for the specific language governing permissions and
     limitations under the License.
 */
+use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 static DEFAULT_NODE_SERVER: &str = "ws://127.0.0.1";
@@ -35,7 +36,7 @@ pub struct Config {
 }
 
 impl Config {
-    /// A new config struct with default settings.
+    /// A new API config struct with default settings.
     #[allow(unused)]
     pub fn new(
         keyholder_ip: String,
@@ -53,12 +54,19 @@ impl Config {
         }
     }
 
+    pub fn from_yaml(path_str: &str) -> Self {
+        let config_path = PathBuf::from(path_str);
+        let config_f = std::fs::File::open(config_path).expect("Could not open file.");
+        serde_yaml::from_reader(config_f).expect("Could not read config.")
+    }
+
     /// Returns the client url of the node (including ws://).
     pub fn node_url(&self) -> String {
         format!("{}:{}", self.node_ip, self.node_port)
     }
 
     /// Returns the worker's url for remote attestation.
+    #[allow(dead_code)]
     pub fn mu_ra_url(&self) -> String {
         format!("{}:{}", self.keyholder_ip, self.mu_ra_port)
     }
