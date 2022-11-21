@@ -18,9 +18,9 @@
 mod config;
 mod enclave;
 mod ocall_impl;
-mod utils;
 #[cfg(test)]
 mod test;
+mod utils;
 
 extern crate core;
 extern crate serde_json;
@@ -28,31 +28,29 @@ extern crate sgx_crypto_helper;
 extern crate sgx_types;
 extern crate sgx_urts;
 
-use sgx_types::*;
 use frame_system::EventRecord;
 use log::{debug, info};
+use sgx_types::*;
 // use sp_runtime::generic::SignedBlock as SignedBlockG;
-use std::{path::PathBuf, sync::mpsc::channel, thread, time::Duration};
+use std::{path::PathBuf, sync::mpsc::channel, thread, thread::Thread, time::Duration};
 use substrate_api_client::{
 	rpc::WsRpcClient, utils::FromHexString, Api, AssetTipExtrinsicParams, XtStatus,
 };
-use utils::node_rpc::{get_api, get_free_balance, get_nonce, get_genesis_hash};
+use utils::node_rpc::{get_api, get_free_balance, get_genesis_hash, get_nonce};
 
 // trex modules
-use pallet_trex::Event as TrexEvent;
-use trex_runtime::RuntimeEvent;
+use trex_runtime::{pallet_trex::Event as TrexEvent, RuntimeEvent};
+use trex_primitives::{ShieldedKey,KeyPiece};
 // local modules
-use config::Config;
+use config::Config as ApiConfig;
 use enclave::{api::*, ffi};
 use frame_support::ensure;
 use serde::{Deserialize, Serialize};
-use sp_core::{
-	crypto::Ss58Codec,
-	sr25519, Decode, Encode, H256 as Hash,
-};
+use sp_core::{crypto::Ss58Codec, ed25519, sr25519, Decode, Encode, Pair, H256 as Hash};
 use utils::node_metadata::NodeMetadata;
 
 use clap::Parser;
+use frame_support::sp_tracing::error;
 
 /// Arguments for the Key-holding services.
 #[derive(Parser, Debug)]
@@ -70,20 +68,12 @@ enum Action {
 	Run,
 	ShieldingPubKey,
 	SigningPubKey,
-	GetFreeBalance,
-}
-
-fn load_config_from_file(path_str: &str) -> Config {
-	let config_path = PathBuf::from(path_str);
-	let config_f = std::fs::File::open(config_path).expect("Could not open file.");
-	serde_yaml::from_reader(config_f).expect("Could not read values.")
+	GetFreeBalance
 }
 
 fn main() {
-	// ------------------------------------------------------------------------
 	// Setup logging
 	env_logger::init();
-	// ------------------------------------------------------------------------
 	// init enclave instance
 	let enclave = match enclave_init() {
 		Ok(r) => {
@@ -95,12 +85,11 @@ fn main() {
 			return
 		},
 	};
-	// ------------------------------------------------------------------------
 	// load Config from config.yml
 	let args = Args::parse();
 	match args.action {
 		Action::Run => {
-			let config: Config = load_config_from_file(&args.config);
+			let config = ApiConfig::from_yaml(&args.config);
 			debug!("Loaded Config from YAML: {:#?}", config);
 
 			// ------------------------------------------------------------------------
@@ -136,7 +125,7 @@ fn main() {
 			info!("Generated RA EXT");
 			// TODO: send extrinsic on chain
 			println!("[>] Register the enclave (send the extrinsic)");
-			let register_enclave_xt_hash = api.send_extrinsic(xthex, XtStatus::InBlock).unwrap();
+			let register_enclave_xt_hash = api.send_extrinsic(xthex, XtStatus::Finalized).unwrap();
 			println!("[<] Extrinsic got finalized. Hash: {:?}\n", register_enclave_xt_hash);
 
 			// TODO: Get account ID of current key-holder node.
@@ -151,33 +140,51 @@ fn main() {
 				println!("Subscribe to TREX events");
 				let (events_in, events_out) = channel();
 				api.subscribe_events(events_in).unwrap();
+				let timeout = Duration::from_millis(10);
 				loop {
-					let event_str = events_out.recv().unwrap();
-					let _unhex = Vec::from_hex(event_str).unwrap();
-					let mut _er_enc = _unhex.as_slice();
-					let events =
-						Vec::<EventRecord<RuntimeEvent, Hash>>::decode(&mut _er_enc).unwrap();
-					// match event with trex event
-					for event in &events {
-						debug!("decoded: {:?} {:?}", event.phase, event.event);
-						match &event.event {
-							// match to trex events.
-							RuntimeEvent::Trex(te) => {
-								debug!(">>>>>>>>>> TREX event: {:?}", te);
-								// match trex data sent event.
-								match &te {
-									TrexEvent::TREXDataSent(_id, _byte_data) => {
-										// TODO: deserialize TREX struct data and check key pieces.
-										todo!();
-									},
-									_ => {
-										debug!("ignoring unsupported TREX event");
-									},
+					if let Ok(msg) = events_out.recv_timeout(timeout) {
+						match parse_events(msg.clone()) {
+							Ok(events) => {
+								for event in &events {
+									debug!("decoded: {:?}", event.event);
+									match &event.event {
+										// match to trex events.
+										RuntimeEvent::Trex(te) => {
+											debug!(">>>>>>>>>> TREX event: {:?}", te);
+											// match trex data sent event.
+											match &te {
+												TrexEvent::TREXDataSent(
+													_id,
+													byte_data,
+													_,
+												) => {
+													// TODO: deserialize TREX struct data and check key pieces.
+													// todo!();
+													println!("{:?}",byte_data);
+												},
+												_ => {
+													debug!("ignoring unsupported TREX event");
+												},
+											}
+										},
+										_ => debug!(
+											"ignoring unsupported module event: {:?}",
+											event.event
+										),
+									}
 								}
 							},
-							_ => debug!("ignoring unsupported module event: {:?}", event.event),
+							Err(e) => {
+								debug!("{:?}", e)
+							},
 						}
 					}
+					// let event_str = events_out.recv().unwrap();
+					// let _unhex = Vec::from_hex(event_str).unwrap();
+					// let mut _er_enc = _unhex.as_slice();
+					// let events =
+					// 	Vec::<EventRecord<RuntimeEvent, Hash>>::decode(&mut _er_enc).unwrap();
+					// // match event with trex event
 					// wait 100 ms for next iteration
 					thread::sleep(Duration::from_millis(100));
 				}
@@ -189,7 +196,6 @@ fn main() {
 			}
 		},
 		Action::ShieldingPubKey => {
-			// TODO: remove test out
 			println!("Generating shielding pub key");
 			let rsa_pubkey = get_shielding_pubkey(&enclave);
 			let json = serde_json::to_string(&rsa_pubkey).unwrap();
@@ -201,14 +207,21 @@ fn main() {
 		},
 		Action::GetFreeBalance => {
 			// load node config.
-			let config: Config = load_config_from_file(&args.config);
+			let config = ApiConfig::from_yaml(&args.config);
 			// Get the account ID of our TEE.
 			let tee_account_id = enclave_account(&enclave).unwrap();
 			// Perform a remote attestation and get an unchecked extrinsic back.
 			let free_balance = get_free_balance(&tee_account_id, &config).unwrap();
 			println!("{:?}", free_balance);
-		},
+		}
 	}
 	enclave.destroy();
 }
 
+type Events = Vec<EventRecord<RuntimeEvent, Hash>>;
+
+fn parse_events(event: String) -> Result<Events, String> {
+	let _unhex = Vec::from_hex(event).map_err(|_| "Decoding Events Failed".to_string())?;
+	let mut _er_enc = _unhex.as_slice();
+	Events::decode(&mut _er_enc).map_err(|_| "Decoding Events Failed".to_string())
+}

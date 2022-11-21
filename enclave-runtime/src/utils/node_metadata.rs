@@ -9,7 +9,7 @@ pub enum Error {
     NodeMetadata(substrate_api_client::MetadataError),
 }
 
-pub type MetaResult<T> = core::result::Result<T, Error>;
+pub type MetaResult<T> = Result<T, Error>;
 
 #[derive(Default, Encode, Decode, Debug, Clone)]
 pub struct NodeMetadata {

@@ -134,6 +134,7 @@ $(App_Name): $(App_Enclave_u_Object) $(App_SRC_Files)
 	@echo "Cargo  =>  $@"
 	mkdir -p bin
 	cp $(App_Rust_Path)/trex-keyholder ./bin
+	cp $(App_Rust_Path)/cli ./bin
 
 ######## Enclave Objects ########
 

@@ -1,5 +1,4 @@
 /bin/enclave.signed.so
-/bin/service
 /enclave-runtime/enclave.so
 /enclave-runtime/Enclave_t.c
 /enclave-runtime/Enclave_t.h
@@ -18,4 +17,5 @@
 /bin/ext_map.bin
 /bin/minheap_source.bin
 /bin/trex-keyholder
+/bin/cli
 /bin/ed25519_key_sealed.bin

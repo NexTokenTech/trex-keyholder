@@ -54,12 +54,16 @@ pub unsafe extern "C" fn perform_ra(
 ) -> sgx_status_t {
 	// our certificate is unlinkable
 	let sign_type = sgx_quote_sign_type_t::SGX_LINKABLE_SIGNATURE;
+
+	let chain_signer = Ed25519Seal::unseal_from_static_file().unwrap();
+	info!("[Enclave Attestation] Ed25519 pub raw : {:?}", chain_signer.public().0);
+
 	// Generate Keypair
 	let ecc_handle = SgxEccHandle::new();
 	let _result = ecc_handle.open();
 	let (prv_k, pub_k) = ecc_handle.create_key_pair().unwrap();
 
-	let (attn_report, sig, cert) = match create_attestation_report(&pub_k, sign_type) {
+	let (attn_report, sig, cert) = match create_attestation_report(&chain_signer.public().0, sign_type) {
 		Ok(r) => {
 			println!("Success in create_attestation_report: {:?}", r);
 			r
@@ -367,7 +371,7 @@ fn as_u32_le(array: &[u8; 4]) -> u32 {
 
 #[allow(const_err)]
 pub fn create_attestation_report(
-	pub_k: &sgx_ec256_public_t,
+	pub_k: &[u8; 32],
 	sign_type: sgx_quote_sign_type_t,
 ) -> Result<(String, String, String), sgx_status_t> {
 	// Workflow:
@@ -422,14 +426,16 @@ pub fn create_attestation_report(
 	let sigrl_vec: Vec<u8> = get_sigrl_from_intel(ias_sock, eg_num);
 
 	// (2) Generate the report
-	// Fill ecc256 public key into report_data
 	let mut report_data: sgx_report_data_t = sgx_report_data_t::default();
-	let mut pub_k_gx = pub_k.gx.clone();
-	pub_k_gx.reverse();
-	let mut pub_k_gy = pub_k.gy.clone();
-	pub_k_gy.reverse();
-	report_data.d[..32].clone_from_slice(&pub_k_gx);
-	report_data.d[32..].clone_from_slice(&pub_k_gy);
+	report_data.d[..32].clone_from_slice(&pub_k[..]);
+	// Fill ecc256 public key into report_data
+	// let mut report_data: sgx_report_data_t = sgx_report_data_t::default();
+	// let mut pub_k_gx = pub_k.gx.clone();
+	// pub_k_gx.reverse();
+	// let mut pub_k_gy = pub_k.gy.clone();
+	// pub_k_gy.reverse();
+	// report_data.d[..32].clone_from_slice(&pub_k_gx);
+	// report_data.d[32..].clone_from_slice(&pub_k_gy);
 
 	let rep = match rsgx_create_report(&ti, &report_data) {
 		Ok(r) => {
