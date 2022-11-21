@@ -5,7 +5,6 @@ use sgx_urts::SgxEnclave;
 use std::io::{Read, Write};
 use std::{fs::File, path::PathBuf};
 use frame_support::ensure;
-use serde_derive::{Deserialize, Serialize};
 use sgx_crypto_helper::rsa3072::Rsa3072PubKey;
 use sp_core::crypto::AccountId32;
 use sp_core::ed25519;
