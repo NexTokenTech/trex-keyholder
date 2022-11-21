@@ -30,9 +30,8 @@ extern crate sgx_urts;
 
 use frame_system::EventRecord;
 use log::{debug, info};
-use sgx_types::*;
 // use sp_runtime::generic::SignedBlock as SignedBlockG;
-use std::{path::PathBuf, sync::mpsc::channel, thread, thread::Thread, time::Duration};
+use std::{sync::mpsc::channel, thread,time::Duration};
 use substrate_api_client::{
 	rpc::WsRpcClient, utils::FromHexString, Api, AssetTipExtrinsicParams, XtStatus,
 };
@@ -40,17 +39,13 @@ use utils::node_rpc::{get_api, get_free_balance, get_genesis_hash, get_nonce};
 
 // trex modules
 use trex_runtime::{pallet_trex::Event as TrexEvent, RuntimeEvent};
-use trex_primitives::{ShieldedKey,KeyPiece};
 // local modules
 use config::Config as ApiConfig;
-use enclave::{api::*, ffi};
-use frame_support::ensure;
-use serde::{Deserialize, Serialize};
-use sp_core::{crypto::Ss58Codec, ed25519, sr25519, Decode, Encode, Pair, H256 as Hash};
+use enclave::{api::*};
+use sp_core::{crypto::Ss58Codec, sr25519, Decode, Encode, H256 as Hash};
 use utils::node_metadata::NodeMetadata;
 
 use clap::Parser;
-use frame_support::sp_tracing::error;
 
 /// Arguments for the Key-holding services.
 #[derive(Parser, Debug)]
@@ -175,15 +170,10 @@ fn main() {
 								}
 							},
 							Err(e) => {
-								debug!("{:?}", e)
+								println!("{:?}", e)
 							},
 						}
 					}
-					// let event_str = events_out.recv().unwrap();
-					// let _unhex = Vec::from_hex(event_str).unwrap();
-					// let mut _er_enc = _unhex.as_slice();
-					// let events =
-					// 	Vec::<EventRecord<RuntimeEvent, Hash>>::decode(&mut _er_enc).unwrap();
 					// // match event with trex event
 					// wait 100 ms for next iteration
 					thread::sleep(Duration::from_millis(100));
