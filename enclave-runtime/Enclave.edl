@@ -35,7 +35,8 @@ enclave {
         public sgx_status_t get_rsa_encryption_pubkey([out, size=pubkey_size] uint8_t* pubkey, uint32_t pubkey_size);
         public sgx_status_t get_ecc_signing_pubkey(
         			[out, size=pubkey_size] uint8_t* pubkey, uint32_t pubkey_size);
-        public sgx_status_t handle_private_keys([in, size=key_len] const uint8_t* key, size_t key_len,uint64_t release_time, uint32_t current_block);
+        public sgx_status_t insert_key_piece([in, size=key_len] const uint8_t* key, size_t key_len, uint64_t release_time, uint32_t current_block);
+        public sgx_status_t get_expired_key([out, size=key_len] uint8_t* key, size_t key_len, [out] uint32_t* from_block);
         public sgx_status_t perform_ra(
         			[in, size=genesis_hash_size] uint8_t* genesis_hash, uint32_t genesis_hash_size,
         			[in] uint32_t* nonce,
@@ -72,6 +73,6 @@ enclave {
         sgx_status_t ocall_get_update_info([in] sgx_platform_info_t * platformBlob,
                 					   int32_t enclaveTrusted,
                 					   [out] sgx_update_info_bit_t * update_info);
-        sgx_status_t ocall_time_ntp([out] uint32_t* time);
+        sgx_status_t ocall_time_ntp([out] uint64_t* time);
     };
 };

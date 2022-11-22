@@ -13,6 +13,8 @@ use tkp_settings::worker::EXTRINSIC_MAX_SIZE;
 use crate::enclave::error::Error;
 use crate::enclave::ffi;
 
+pub const MAX_KEY_SIZE: usize = 32;
+
 /// init enclave
 pub fn enclave_init() -> SgxResult<SgxEnclave> {
 	const LEN: usize = 1024;
@@ -199,8 +201,8 @@ pub fn enclave_account(enclave: &SgxEnclave) -> Result<AccountId32, Error> {
 	Ok(tee_account_id)
 }
 
-/// Decrypt private key according to release_time
-pub fn handle_private_keys(
+/// Insert private key piece according to the release time
+pub fn insert_key_piece(
 	enclave: &SgxEnclave,
 	key: Vec<u8>,
 	release_time:u64,
@@ -208,7 +210,7 @@ pub fn handle_private_keys(
 ) {
 	let mut retval = sgx_status_t::SGX_SUCCESS;
 	let result = unsafe{
-		ffi::handle_private_keys(
+		ffi::insert_key_piece(
 			enclave.geteid(),
 			&mut retval,
 			key.as_ptr(),
@@ -219,11 +221,33 @@ pub fn handle_private_keys(
 	};
 	match result {
 		sgx_status_t::SGX_SUCCESS => {
-			println!("ECALL Set Nonce Success!");
+			info!("ECALL Insert Key Success!");
 		},
 		_ => {
-			println!("[-] ECALL Set Nonce Enclave Failed {}!", result.as_str());
+			info!("[-] ECALL Insert Key Failed {}!", result.as_str());
 			return
 		},
+	}
+}
+
+pub fn get_expired_key() -> Option<Vec<u8>> {
+	let mut key: Vec<u8> = vec![0u8; MAX_KEY_SIZE];
+	let mut from_block: u32 = 0;
+	let res = unsafe {
+		ffi::get_expired_key(key.as_mut_ptr(), MAX_KEY_SIZE as u32, &mut from_block)
+	};
+	match res {
+		sgx_status_t::SGX_SUCCESS => {
+			info!("ECALL Get Key Success!");
+		},
+		_ => {
+			info!("[-] ECALL Get Key Failed {}!", res.as_str());
+			return None
+		},
+	}
+	if from_block > 0 {
+		Some(key)
+	} else {
+		None
 	}
 }

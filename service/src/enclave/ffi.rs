@@ -19,8 +19,8 @@ extern "C" {
 		pubkey_size: u32,
 	) -> sgx_status_t;
 
-	/// handle sealed keys on chain, and decrypt them by time
-	pub fn handle_private_keys(
+	/// handle sealed keys on chain, and insert it to the queue
+	pub fn insert_key_piece(
 		eid: sgx_enclave_id_t,
 		retval: *mut sgx_status_t,
 		key: *const u8,
@@ -28,6 +28,9 @@ extern "C" {
 		release_time: u64,
 		current_block: u32,
 	) -> sgx_status_t;
+
+	/// check if the key piece is expired and extract it from the enclave if so.
+	pub fn get_expired_key(key: *mut u8, key_len: u32, from_block: *mut u32) -> sgx_status_t;
 
 	/// generate remote attestation report and construct an unchecked extrinsic which will send by pallet-teerex
 	pub fn perform_ra(

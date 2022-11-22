@@ -4,7 +4,8 @@ use sgx_types::{
 };
 
 extern "C" {
-	/// output decrypted key piece from enclave
+	/// Print out key piece from enclave
+	#[allow(dead_code)]
 	pub fn ocall_output_key(
 		ret_val: *mut sgx_status_t,
 		key: *const u8,
@@ -14,7 +15,7 @@ extern "C" {
 	/// obtain current time from ntp server
 	pub fn ocall_time_ntp(
 		ret_val: *mut sgx_status_t,
-		time: *mut u32
+		time: *mut u64
 	) -> sgx_status_t;
 
 	/// init quote, used by remote attestation

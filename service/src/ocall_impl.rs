@@ -67,12 +67,12 @@ impl NtpUdpSocket for UdpSocketWrapper {
 pub unsafe extern "C" fn ocall_output_key(key: *const u8, key_len: u32) -> sgx_status_t {
 	let private_key_text_vec = unsafe { slice::from_raw_parts(key, key_len as usize) };
 	let str = String::from_utf8(private_key_text_vec.to_vec());
-	println!("I'm in ocall function {:?}", str);
+	debug!("Print out the key string: {:?}", str);
 	sgx_status_t::SGX_SUCCESS
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn ocall_time_ntp(time: *mut u32) -> sgx_status_t {
+pub unsafe extern "C" fn ocall_time_ntp(time: *mut u64) -> sgx_status_t {
 	let socket =
 		UdpSocket::bind("0.0.0.0:0").expect("Unable to crate UDP socket");
 	socket
@@ -87,10 +87,11 @@ pub unsafe extern "C" fn ocall_time_ntp(time: *mut u32) -> sgx_status_t {
 		Ok(cur_time) => {
 			assert_ne!(cur_time.sec(), 0);
 			debug!(
-				"Got time: {}",
+				"Got unix epoch timestamp : {} (sec)",
 				cur_time.sec()
 			);
-			*time = cur_time.sec()
+			// Convert sec timestamp to millisecond timestamp for matching with TREX Moment type.
+			*time = cur_time.sec() as u64 * 1000;
 		}
 		Err(err) => debug!("Err: {:?}", err),
 	}

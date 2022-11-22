@@ -43,7 +43,7 @@ use sp_core::{crypto::Ss58Codec, sr25519, Decode, Encode, H256 as Hash};
 
 // trex modules
 use trex_runtime::{pallet_trex::Event as TrexEvent, RuntimeEvent, Moment, BlockNumber, AccountId};
-use trex_primitives::{TREXData, KeyPiece};
+use trex_primitives::TREXData;
 // local modules
 use config::Config as ApiConfig;
 use enclave::{api::*};

@@ -29,7 +29,6 @@ pub fn get_nonce(who: &AccountId32, config: &Config) -> Result<u32, ApiClientErr
 }
 
 /// Obtain the free balance of the enclave account through rpc
-#[allow(dead_code)]
 pub fn get_free_balance(who: &AccountId32, config: &Config) -> Result<u128, ApiClientError> {
 	let api = get_api(config).unwrap();
 	// Ok(api.get_account_info(who)?.map_or_else(|| 0, |info| info.nonce))
@@ -50,7 +49,7 @@ pub fn get_enclave_count(config: &Config, at_block: Option<H256>) -> ApiResult<u
 }
 
 /// Obtain the enclave through rpc
-pub fn enclave(
+fn enclave(
 	config: &Config,
 	index: u64,
 	at_block: Option<H256>,

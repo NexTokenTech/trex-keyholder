@@ -3,7 +3,7 @@ use substrate_api_client::{Metadata, MetadataError};
 
 /// Code duplication due to the key holder using substrate/polkadot 0.9.30 but runtime use 0.9.27.
 /// The code will be resolved after above issue is fixed.
-
+#[allow(dead_code)]
 pub type MetaResult<T> = Result<T, Error>;
 // TODO: consolidate with error type in enclave-runtime.
 #[derive(Debug, PartialEq, Eq)]
@@ -11,7 +11,7 @@ pub enum Error {
     /// Metadata has not been set
     MetadataNotSet,
     /// Api-client metadata error
-    NodeMetadata(substrate_api_client::MetadataError),
+    NodeMetadata(MetadataError),
 }
 
 #[derive(Default, Encode, Decode, Debug, Clone)]

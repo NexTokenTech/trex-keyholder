@@ -87,13 +87,26 @@ use tkp_sgx_io::StaticSealedIO;
 use utils::node_metadata::NodeMetadata;
 
 lazy_static! {
-	static ref MIN_BINARY_HEAP: Mutex<BinaryHeap<Reverse<Ext>>> = Mutex::new(BinaryHeap::new());
+	static ref MIN_BINARY_HEAP: Mutex<BinaryHeap<Reverse<KeyPiece>>> = Mutex::new(BinaryHeap::new());
 	pub static ref NODE_META_DATA: Mutex<Vec<u8>> = Mutex::new(Vec::<u8>::new());
 }
 
-pub struct LocalRsa3072PubKey {
+struct LocalRsa3072PubKey {
 	pub n: [u8; SGX_RSA3072_KEY_SIZE],
 	pub e: [u8; SGX_RSA3072_PUB_EXP_SIZE],
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd)]
+struct KeyPiece {
+	release_time: u64,
+	from_block: u32,
+	key_piece: Vec<u8>,
+}
+
+impl Ord for KeyPiece {
+	fn cmp(&self, other: &Self) -> Ordering {
+		self.release_time.cmp(&other.release_time).reverse()
+	}
 }
 
 #[no_mangle]
@@ -106,12 +119,12 @@ pub unsafe extern "C" fn get_rsa_encryption_pubkey(
 		let rsa_key_json = serde_json::to_string(&rsa_keypair).unwrap();
 		provisioning_key(rsa_key_json.as_ptr() as *const u8, rsa_key_json.len(), KEYFILE);
 	}
-	let mut keyvec: Vec<u8> = Vec::new();
+	let mut key_vec: Vec<u8> = Vec::new();
 	let key_json_str = match SgxFile::open(KEYFILE) {
-		Ok(mut f) => match f.read_to_end(&mut keyvec) {
+		Ok(mut f) => match f.read_to_end(&mut key_vec) {
 			Ok(len) => {
 				println!("Read {} bytes from Key file", len);
-				std::str::from_utf8(&keyvec).unwrap()
+				std::str::from_utf8(&key_vec).unwrap()
 			},
 			Err(x) => {
 				println!("Read keyfile failed {}", x);
@@ -159,54 +172,52 @@ pub unsafe extern "C" fn get_ecc_signing_pubkey(pubkey: *mut u8, pubkey_size: u3
 }
 
 #[no_mangle]
-pub extern "C" fn handle_private_keys(
+pub extern "C" fn insert_key_piece(
 	key: *const u8,
 	key_len: u32,
 	release_time: u64,
 	current_block: u32,
 ) -> sgx_status_t {
-	println!("I'm in enclave");
-	// FIXME: Need to do some fault tolerance
+	// Decrypt key piece inside the enclave.
+	let key_piece = unsafe { slice::from_raw_parts(key, key_len as usize) };
+	let decrypted_key = get_decrypt_cipher_text(key_piece.as_ptr() as *const u8, key_piece.len());
+	let ext_item = KeyPiece { release_time, from_block: current_block, key_piece: decrypted_key };
+	info!("Inserting a new key piece to the enclave queue!");
 	let mut min_heap = MIN_BINARY_HEAP.lock().unwrap();
-
-	let private_key_text_vec = unsafe { slice::from_raw_parts(key, key_len as usize) };
-	let ext_item = Ext { release_time, current_block, private_key: private_key_text_vec.to_vec() };
 	min_heap.push(Reverse(ext_item));
+	sgx_status_t::SGX_SUCCESS
+}
 
-	// FIXME: replace with trusted time
-	let mut now_time: u32 = 0;
+#[no_mangle]
+pub extern "C" fn get_expired_key(
+	key: *mut u8,
+	key_len: u32,
+	from_block: *mut u32,
+) -> sgx_status_t {
+	// reset the block height.
+	unsafe {
+		*from_block = 0;
+	}
+	// TODO: replace with trusted time
+	let mut now_time: u64 = 0;
 	let _res = unsafe {
 		let mut rt: sgx_status_t = sgx_status_t::SGX_ERROR_UNEXPECTED;
-		ffi::ocall_time_ntp(
-			&mut rt as *mut sgx_status_t,
-			&mut now_time
-		);
+		ffi::ocall_time_ntp(&mut rt as *mut sgx_status_t, &mut now_time);
 	};
-
-	loop {
-		if let Some(Reverse(v)) = min_heap.peek() {
-			if v.release_time <= now_time as u64 {
-				let decrpyted_msg = get_decrypt_cipher_text(
-					v.private_key.as_ptr() as *const u8,
-					v.private_key.len(),
-				);
-				let mut rt: sgx_status_t = sgx_status_t::SGX_ERROR_UNEXPECTED;
-				let _res = unsafe {
-					ffi::ocall_output_key(
-						&mut rt as *mut sgx_status_t,
-						decrpyted_msg.as_ptr() as *const u8,
-						decrpyted_msg.len() as u32,
-					);
-				};
-				min_heap.pop();
-			} else {
-				break
+	info!("Getting an expired key piece from the enclave queue!");
+	let mut min_heap = MIN_BINARY_HEAP.lock().unwrap();
+	// Check if any key is expired.
+	if let Some(Reverse(v)) = min_heap.peek() {
+		if v.release_time <= now_time {
+			let expired_key = unsafe { slice::from_raw_parts_mut(key, key_len as usize) };
+			write_slice_and_whitespace_pad( expired_key, v.key_piece.clone())
+				.expect("Key buffer is overflown!");
+			unsafe {
+				*from_block = v.from_block;
 			}
-		} else {
-			break
+			min_heap.pop();
 		}
 	}
-	// TODO: min_heap Persistence
 	sgx_status_t::SGX_SUCCESS
 }
 
@@ -252,39 +263,34 @@ pub unsafe extern "C" fn set_node_metadata(
 }
 
 #[no_mangle]
-pub extern "C" fn test_decrypt(plain: *const u8,
-							   plain_len: u32,
-							   cipher: *const u8,
-							   cipher_len: u32,
-							   res: *mut u8) -> sgx_status_t {
+pub extern "C" fn test_decrypt(
+	plain: *const u8,
+	plain_len: u32,
+	cipher: *const u8,
+	cipher_len: u32,
+	res: *mut u8,
+) -> sgx_status_t {
 	let decrypted = get_decrypt_cipher_text(cipher, cipher_len as usize);
-	let original = unsafe {slice::from_raw_parts(plain, plain_len as usize)};
+	let original = unsafe { slice::from_raw_parts(plain, plain_len as usize) };
 	// set the compare result as 1: true, means equal.
-	unsafe {*res = 1;}
+	unsafe {
+		*res = 1;
+	}
 	// if do not match, set as 0: false
 	for (ai, bi) in decrypted.iter().zip(original.iter()) {
 		match ai.cmp(&bi) {
 			Ordering::Equal => continue,
-			_ => unsafe {*res = 0;}
+			_ => unsafe {
+				*res = 0;
+			},
 		}
 	}
 	if decrypted.len() != original.len() {
-		unsafe {*res = 0;}
+		unsafe {
+			*res = 0;
+		}
 	}
 	sgx_status_t::SGX_SUCCESS
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd)]
-pub struct Ext {
-	release_time: u64,
-	current_block: u32,
-	private_key: Vec<u8>,
-}
-
-impl Ord for Ext {
-	fn cmp(&self, other: &Self) -> Ordering {
-		self.release_time.cmp(&other.release_time).reverse()
-	}
 }
 
 fn get_decrypt_cipher_text(cipher_text: *const u8, cipher_len: usize) -> Vec<u8> {
