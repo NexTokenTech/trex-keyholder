@@ -11,6 +11,7 @@ extern "C" {
 		key_len: u32,
 	) -> sgx_status_t;
 
+	/// obtain current time from ntp server
 	pub fn ocall_time_ntp(
 		ret_val: *mut sgx_status_t,
 		time: *mut u32

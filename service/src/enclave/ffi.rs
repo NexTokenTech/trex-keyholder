@@ -25,7 +25,7 @@ extern "C" {
 		retval: *mut sgx_status_t,
 		key: *const u8,
 		key_len: u32,
-		release_time: u32,
+		release_time: u64,
 		current_block: u32,
 	) -> sgx_status_t;
 

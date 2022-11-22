@@ -59,8 +59,6 @@ use std::{
 	slice,
 	string::String,
 	sync::SgxMutex as Mutex,
-	time::SystemTime,
-	untrusted::time::SystemTimeEx,
 	vec::Vec,
 };
 
@@ -164,7 +162,7 @@ pub unsafe extern "C" fn get_ecc_signing_pubkey(pubkey: *mut u8, pubkey_size: u3
 pub extern "C" fn handle_private_keys(
 	key: *const u8,
 	key_len: u32,
-	release_time: u32,
+	release_time: u64,
 	current_block: u32,
 ) -> sgx_status_t {
 	println!("I'm in enclave");
@@ -187,7 +185,7 @@ pub extern "C" fn handle_private_keys(
 
 	loop {
 		if let Some(Reverse(v)) = min_heap.peek() {
-			if v.release_time <= now_time {
+			if v.release_time <= now_time as u64 {
 				let decrpyted_msg = get_decrypt_cipher_text(
 					v.private_key.as_ptr() as *const u8,
 					v.private_key.len(),
@@ -278,7 +276,7 @@ pub extern "C" fn test_decrypt(plain: *const u8,
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd)]
 pub struct Ext {
-	release_time: u32,
+	release_time: u64,
 	current_block: u32,
 	private_key: Vec<u8>,
 }

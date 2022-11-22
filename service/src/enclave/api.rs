@@ -203,7 +203,7 @@ pub fn enclave_account(enclave: &SgxEnclave) -> Result<AccountId32, Error> {
 pub fn handle_private_keys(
 	enclave: &SgxEnclave,
 	key: Vec<u8>,
-	release_time:u32,
+	release_time:u64,
 	current_block:u32
 ) {
 	let mut retval = sgx_status_t::SGX_SUCCESS;

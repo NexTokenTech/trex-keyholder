@@ -8,12 +8,14 @@ use sgx_types::*;
 use std::{
 	net::{SocketAddr, TcpStream, ToSocketAddrs, UdpSocket},
 	os::unix::io::IntoRawFd,
-	slice, str, thread, time,
+	slice, str,
 	time::Duration,
 };
+use log::debug;
 
 use sntpc::{self, Error, NtpContext, NtpTimestampGenerator, NtpUdpSocket};
 
+// TODO: move this to config
 #[allow(dead_code)]
 const POOL_NTP_ADDR: &str = "pool.ntp.org:123";
 
@@ -84,14 +86,13 @@ pub unsafe extern "C" fn ocall_time_ntp(time: *mut u32) -> sgx_status_t {
 	match result {
 		Ok(cur_time) => {
 			assert_ne!(cur_time.sec(), 0);
-			println!(
-				"Got time: {}.{}",
-				cur_time.sec(),
-				cur_time.sec_fraction() as u64 * 1_000_000 / u32::MAX as u64
+			debug!(
+				"Got time: {}",
+				cur_time.sec()
 			);
 			*time = cur_time.sec()
 		}
-		Err(err) => println!("Err: {:?}", err),
+		Err(err) => debug!("Err: {:?}", err),
 	}
 	sgx_status_t::SGX_SUCCESS
 }
@@ -106,8 +107,6 @@ pub extern "C" fn ocall_sgx_init_quote(
 }
 
 pub fn lookup_ipv4(host: &str, port: u16) -> SocketAddr {
-	use std::net::ToSocketAddrs;
-
 	let addrs = (host, port).to_socket_addrs().unwrap();
 	for addr in addrs {
 		if let SocketAddr::V4(_) = addr {
