@@ -104,7 +104,7 @@ fn main() {
 		);
 		let xt = compose_extrinsic_offline!(
 			signer,
-			(call, "cipher".as_bytes(), release_time(), key_pieces.clone()),
+			(call, "a test cipher".as_bytes(), release_time(), key_pieces.clone()),
 			extrinsic_params
 		);
 

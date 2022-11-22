@@ -65,8 +65,7 @@ pub fn get_shielding_key(config:&Config) -> ApiResult<(Rsa3072PubKey,AccountId)>
 	let first_enclave = enclave(&config, FIRST_ENCLAVE_INDEX, None).unwrap().unwrap();
 	let account = first_enclave.pubkey;
 	// transmute shielding_key to rsa_pubkey
-	let mut pubkey = [0u8; SGX_RSA3072_KEY_SIZE + SGX_RSA3072_PUB_EXP_SIZE];
-	pubkey = first_enclave.shielding_key.clone().try_into().unwrap();
+	let pubkey: [u8; SGX_RSA3072_KEY_SIZE + SGX_RSA3072_PUB_EXP_SIZE] = first_enclave.shielding_key.clone().try_into().unwrap();
 	let rsa_pubkey: Rsa3072PubKey = unsafe { std::mem::transmute(pubkey) };
 	Ok((rsa_pubkey,account))
 }

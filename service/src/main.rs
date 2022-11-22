@@ -28,24 +28,27 @@ extern crate sgx_crypto_helper;
 extern crate sgx_types;
 extern crate sgx_urts;
 
-use frame_system::EventRecord;
 use log::{debug, info};
+use clap::Parser;
+use std::str;
+
+// substrate moduels
+use frame_system::EventRecord;
 // use sp_runtime::generic::SignedBlock as SignedBlockG;
 use std::{sync::mpsc::channel, thread,time::Duration};
 use substrate_api_client::{
 	rpc::WsRpcClient, utils::FromHexString, Api, AssetTipExtrinsicParams, XtStatus,
 };
-use utils::node_rpc::{get_api, get_free_balance, get_genesis_hash, get_nonce};
+use sp_core::{crypto::Ss58Codec, sr25519, Decode, Encode, H256 as Hash};
 
 // trex modules
-use trex_runtime::{pallet_trex::Event as TrexEvent, RuntimeEvent};
+use trex_runtime::{pallet_trex::Event as TrexEvent, RuntimeEvent, Moment, BlockNumber, AccountId};
+use trex_primitives::{TREXData, KeyPiece};
 // local modules
 use config::Config as ApiConfig;
 use enclave::{api::*};
-use sp_core::{crypto::Ss58Codec, sr25519, Decode, Encode, H256 as Hash};
 use utils::node_metadata::NodeMetadata;
-
-use clap::Parser;
+use utils::node_rpc::{get_api, get_free_balance, get_genesis_hash, get_nonce};
 
 /// Arguments for the Key-holding services.
 #[derive(Parser, Debug)]
@@ -65,6 +68,8 @@ enum Action {
 	SigningPubKey,
 	GetFreeBalance
 }
+
+pub type DecodedTREXData = TREXData::<AccountId, Moment, BlockNumber>;
 
 fn main() {
 	// Setup logging
@@ -118,13 +123,10 @@ fn main() {
 			xthex.insert_str(0, "0x");
 
 			info!("Generated RA EXT");
-			// TODO: send extrinsic on chain
 			println!("[>] Register the enclave (send the extrinsic)");
 			let register_enclave_xt_hash = api.send_extrinsic(xthex, XtStatus::Finalized).unwrap();
 			println!("[<] Extrinsic got finalized. Hash: {:?}\n", register_enclave_xt_hash);
 
-			// TODO: Get account ID of current key-holder node.
-			// TODO: Send remote attestation as ext to the trex network.
 			// Spawn a thread to listen to the TREX data event.
 			let event_url = config.node_url();
 			let mut handlers = Vec::new();
@@ -151,11 +153,17 @@ fn main() {
 												TrexEvent::TREXDataSent(
 													_id,
 													byte_data,
-													_,
 												) => {
-													// TODO: deserialize TREX struct data and check key pieces.
-													// todo!();
-													println!("{:?}",byte_data);
+													let mut local_bytes = byte_data.as_slice();
+													let trex_data = DecodedTREXData::decode(&mut local_bytes).unwrap();
+													let cipher_str = str::from_utf8(&trex_data.cipher).unwrap();
+													for key_piece in trex_data.key_pieces {
+														if tee_account_id == key_piece.holder {
+															let shielded_key = key_piece.shielded;
+															info!("Found a shielded key {:X?}", shielded_key);
+														}
+													}
+													info!("The test cipher is {:#?}", cipher_str);
 												},
 												_ => {
 													debug!("ignoring unsupported TREX event");
