@@ -17,10 +17,10 @@
 #![cfg_attr(debug_assertions, allow(dead_code, unused_imports))]
 mod config;
 mod enclave;
-mod ocall_impl;
 #[cfg(test)]
 mod test;
 mod utils;
+mod ocall;
 
 extern crate core;
 extern crate serde_json;
