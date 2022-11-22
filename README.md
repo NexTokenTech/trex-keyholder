@@ -49,3 +49,13 @@ may not be able to register on the TREX network.
 ```shell
 RUST_LOG=info ./trex-keyholder -c ../service/src/config.yml get-free-balance
 ```
+
+# CLI tool
+A CLI tool is built to provide utilities for testing and basic operations.
+## Dev Test
+The dev test function uses a well-know account for testing purpose. The well-known seed is in the 
+local yaml file "seed.yml" for testing and dev purposes.
+Use below command to initialize and send a TREX data for test.
+```shell
+RUST_LOG=info ./cli -c ../service/src/config.yml -s ../service/src/seed.yml
+```
