@@ -1,4 +1,6 @@
 use crate::config::Config;
+use sgx_crypto_helper::rsa3072::Rsa3072PubKey;
+use sgx_types::*;
 use sp_core::{
 	crypto::{AccountId32, AccountId32 as AccountId},
 	sr25519, H256,
@@ -6,8 +8,6 @@ use sp_core::{
 use substrate_api_client::{
 	rpc::WsRpcClient, Api, ApiClientError, ApiResult, AssetTipExtrinsicParams,
 };
-use sgx_types::*;
-use sgx_crypto_helper::rsa3072::Rsa3072PubKey;
 use tee_primitives::Enclave;
 
 pub const TEE: &str = "Tee";
@@ -59,12 +59,13 @@ fn enclave(
 }
 
 /// Obtain the shielding key through enclave
-pub fn get_shielding_key(config:&Config) -> ApiResult<(Rsa3072PubKey,AccountId)>{
+pub fn get_shielding_key(config: &Config) -> ApiResult<(Rsa3072PubKey, AccountId)> {
 	// fetch first registered enclave by rpc
 	let first_enclave = enclave(&config, FIRST_ENCLAVE_INDEX, None).unwrap().unwrap();
 	let account = first_enclave.pubkey;
 	// transmute shielding_key to rsa_pubkey
-	let pubkey: [u8; SGX_RSA3072_KEY_SIZE + SGX_RSA3072_PUB_EXP_SIZE] = first_enclave.shielding_key.clone().try_into().unwrap();
+	let pubkey: [u8; SGX_RSA3072_KEY_SIZE + SGX_RSA3072_PUB_EXP_SIZE] =
+		first_enclave.shielding_key.clone().try_into().unwrap();
 	let rsa_pubkey: Rsa3072PubKey = unsafe { std::mem::transmute(pubkey) };
-	Ok((rsa_pubkey,account))
+	Ok((rsa_pubkey, account))
 }

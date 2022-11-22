@@ -25,37 +25,37 @@ Once the executable and signed enclave library was build, they were copied to th
 Then, you may run the service giving the configuration file path. For example:
 ```shell
 cd bin
-RUST_LOG=info ./trex-keyholder -c ../service/src/config.yml run
+RUST_LOG=info ./trex-keyholder -c ../service/src/config.yml
 ```
 The default configuration file is included within the source code, and you may use other configuration 
 based on the environment and requirements.
 
-### Generate shielding key
-You may generate the shielding key locally to communicate with the enclave. The shielding key is contained 
-in the TEE on-chain runtime data so that clients can request the shielding key.
-```shell
-RUST_LOG=info ./trex-keyholder -c ../service/src/config.yml shielding-pub-key
-```
-### Generate account ID for the key-holder node
-The key-holder node needs an on-chain account to register the enclave and publish remote attestation 
-report. The account ID can be access by following commends.
-```shell
-RUST_LOG=info ./trex-keyholder -c ../service/src/config.yml signing-pub-key
-```
-### Check account balance for the key-holder node
-To put the RA report on chain, the key-holder needs tokens to pay for the fee. Use this command to make
-sure that your key-holder node has enough balance. If the balance is not enough, your key-holder node 
-may not be able to register on the TREX network.
-```shell
-RUST_LOG=info ./trex-keyholder -c ../service/src/config.yml get-free-balance
-```
-
-# CLI tool
+## CLI tool
 A CLI tool is built to provide utilities for testing and basic operations.
-## Dev Test
+### Dev Test
 The dev test function uses a well-know account for testing purpose. The well-known seed is in the 
 local yaml file "seed.yml" for testing and dev purposes.
 Use below command to initialize and send a TREX data for test.
 ```shell
-RUST_LOG=info ./cli -c ../service/src/config.yml -s ../service/src/seed.yml
+RUST_LOG=info ./cli -c ../service/src/config.yml -s ../service/src/seed.yml test
+```
+### Generate account ID for the key-holder node
+The key-holder node needs an on-chain account to register the enclave and publish remote attestation
+report. The account ID can be access by following commends.
+```shell
+RUST_LOG=info ./cli -c ../service/src/config.yml signing-pub-key
+```
+### Check account balance for the key-holder node
+To put the RA report on chain, the key-holder needs tokens to pay for the fee. Use this command to make
+sure that your key-holder node has enough balance. If the balance is not enough, your key-holder node
+may not be able to register on the TREX network.
+```shell
+RUST_LOG=info ./cli -c ../service/src/config.yml get-free-balance
+```
+
+### Generate shielding key
+You may generate the shielding key locally to communicate with the enclave. The shielding key is contained
+in the TEE on-chain runtime data so that clients can request the shielding key.
+```shell
+RUST_LOG=info ./cli -c ../service/src/config.yml shielding-pub-key
 ```

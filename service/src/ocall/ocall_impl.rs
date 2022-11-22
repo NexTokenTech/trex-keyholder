@@ -5,13 +5,13 @@ extern crate sgx_urts;
 
 use sgx_types::*;
 
+use log::debug;
 use std::{
 	net::{SocketAddr, TcpStream, ToSocketAddrs, UdpSocket},
 	os::unix::io::IntoRawFd,
 	slice, str,
 	time::Duration,
 };
-use log::debug;
 
 use sntpc::{self, Error, NtpContext, NtpTimestampGenerator, NtpUdpSocket};
 
@@ -44,11 +44,7 @@ impl NtpTimestampGenerator for StdTimestampGen {
 struct UdpSocketWrapper(UdpSocket);
 
 impl NtpUdpSocket for UdpSocketWrapper {
-	fn send_to<T: ToSocketAddrs>(
-		&self,
-		buf: &[u8],
-		addr: T,
-	) -> Result<usize, Error> {
+	fn send_to<T: ToSocketAddrs>(&self, buf: &[u8], addr: T) -> Result<usize, Error> {
 		match self.0.send_to(buf, addr) {
 			Ok(usize) => Ok(usize),
 			Err(_) => Err(Error::Network),
@@ -73,8 +69,7 @@ pub unsafe extern "C" fn ocall_output_key(key: *const u8, key_len: u32) -> sgx_s
 
 #[no_mangle]
 pub unsafe extern "C" fn ocall_time_ntp(time: *mut u64) -> sgx_status_t {
-	let socket =
-		UdpSocket::bind("0.0.0.0:0").expect("Unable to crate UDP socket");
+	let socket = UdpSocket::bind("0.0.0.0:0").expect("Unable to crate UDP socket");
 	socket
 		.set_read_timeout(Some(Duration::from_secs(2)))
 		.expect("Unable to set UDP socket read timeout");
@@ -86,13 +81,10 @@ pub unsafe extern "C" fn ocall_time_ntp(time: *mut u64) -> sgx_status_t {
 	match result {
 		Ok(cur_time) => {
 			assert_ne!(cur_time.sec(), 0);
-			debug!(
-				"Got unix epoch timestamp : {} (sec)",
-				cur_time.sec()
-			);
+			debug!("Got unix epoch timestamp : {} (sec)", cur_time.sec());
 			// Convert sec timestamp to millisecond timestamp for matching with TREX Moment type.
 			*time = cur_time.sec() as u64 * 1000;
-		}
+		},
 		Err(err) => debug!("Err: {:?}", err),
 	}
 	sgx_status_t::SGX_SUCCESS

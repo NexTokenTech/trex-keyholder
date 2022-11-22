@@ -30,7 +30,13 @@ extern "C" {
 	) -> sgx_status_t;
 
 	/// check if the key piece is expired and extract it from the enclave if so.
-	pub fn get_expired_key(key: *mut u8, key_len: u32, from_block: *mut u32) -> sgx_status_t;
+	pub fn get_expired_key(
+		eid: sgx_enclave_id_t,
+		retval: *mut sgx_status_t,
+		key: *mut u8,
+		key_len: u32,
+		from_block: *mut u32,
+	) -> sgx_status_t;
 
 	/// generate remote attestation report and construct an unchecked extrinsic which will send by pallet-teerex
 	pub fn perform_ra(
