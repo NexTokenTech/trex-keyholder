@@ -164,35 +164,30 @@ pub unsafe extern "C" fn get_ecc_signing_pubkey(pubkey: *mut u8, pubkey_size: u3
 pub extern "C" fn handle_private_keys(
 	key: *const u8,
 	key_len: u32,
-	timestamp: u32,
-	enclave_index: u32,
+	release_time: u32,
+	current_block: u32,
 ) -> sgx_status_t {
 	println!("I'm in enclave");
 	// FIXME: Need to do some fault tolerance
 	let mut min_heap = MIN_BINARY_HEAP.lock().unwrap();
 
 	let private_key_text_vec = unsafe { slice::from_raw_parts(key, key_len as usize) };
-	let ext_item = Ext { timestamp, enclave_index, private_key: private_key_text_vec.to_vec() };
+	let ext_item = Ext { release_time, current_block, private_key: private_key_text_vec.to_vec() };
 	min_heap.push(Reverse(ext_item));
 
 	// FIXME: replace with trusted time
-	let now = SystemTime::now();
-	let mut now_time: u64 = 0;
-	match now.duration_since(SystemTime::UNIX_EPOCH) {
-		Ok(elapsed) => {
-			// it prints '2'
-			println!("{}", elapsed.as_secs());
-			now_time = elapsed.as_secs();
-		},
-		Err(e) => {
-			// an error occurred!
-			println!("Error: {:?}", e);
-		},
+	let mut now_time: u32 = 0;
+	let _res = unsafe {
+		let mut rt: sgx_status_t = sgx_status_t::SGX_ERROR_UNEXPECTED;
+		ffi::ocall_time_ntp(
+			&mut rt as *mut sgx_status_t,
+			&mut now_time
+		);
 	};
 
 	loop {
 		if let Some(Reverse(v)) = min_heap.peek() {
-			if v.timestamp <= now_time as u32 {
+			if v.release_time <= now_time {
 				let decrpyted_msg = get_decrypt_cipher_text(
 					v.private_key.as_ptr() as *const u8,
 					v.private_key.len(),
@@ -283,14 +278,14 @@ pub extern "C" fn test_decrypt(plain: *const u8,
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd)]
 pub struct Ext {
-	timestamp: u32,
-	enclave_index: u32,
+	release_time: u32,
+	current_block: u32,
 	private_key: Vec<u8>,
 }
 
 impl Ord for Ext {
 	fn cmp(&self, other: &Self) -> Ordering {
-		self.timestamp.cmp(&other.timestamp).reverse()
+		self.release_time.cmp(&other.release_time).reverse()
 	}
 }
 

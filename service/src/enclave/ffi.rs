@@ -25,8 +25,8 @@ extern "C" {
 		retval: *mut sgx_status_t,
 		key: *const u8,
 		key_len: u32,
-		timestamp: u32,
-		enclave_index: u32,
+		release_time: u32,
+		current_block: u32,
 	) -> sgx_status_t;
 
 	/// generate remote attestation report and construct an unchecked extrinsic which will send by pallet-teerex

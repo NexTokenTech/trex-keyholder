@@ -66,7 +66,7 @@ enum Action {
 	Run,
 	ShieldingPubKey,
 	SigningPubKey,
-	GetFreeBalance
+	GetFreeBalance,
 }
 
 pub type DecodedTREXData = TREXData::<AccountId, Moment, BlockNumber>;
@@ -160,10 +160,10 @@ fn main() {
 													for key_piece in trex_data.key_pieces {
 														if tee_account_id == key_piece.holder {
 															let shielded_key = key_piece.shielded;
-															info!("Found a shielded key {:X?}", shielded_key);
+															println!("Found a shielded key {:X?}", shielded_key);
 														}
 													}
-													info!("The test cipher is {:#?}", cipher_str);
+													println!("The test cipher is {:#?}", cipher_str);
 												},
 												_ => {
 													debug!("ignoring unsupported TREX event");

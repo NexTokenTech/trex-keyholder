@@ -6,16 +6,93 @@ extern crate sgx_urts;
 use sgx_types::*;
 
 use std::{
-	net::{SocketAddr, TcpStream},
+	net::{SocketAddr, TcpStream, ToSocketAddrs, UdpSocket},
 	os::unix::io::IntoRawFd,
-	slice, str,
+	slice, str, thread, time,
+	time::Duration,
 };
+
+use sntpc::{self, Error, NtpContext, NtpTimestampGenerator, NtpUdpSocket};
+
+#[allow(dead_code)]
+const POOL_NTP_ADDR: &str = "pool.ntp.org:123";
+
+#[derive(Copy, Clone, Default)]
+struct StdTimestampGen {
+	duration: Duration,
+}
+
+impl NtpTimestampGenerator for StdTimestampGen {
+	fn init(&mut self) {
+		self.duration = std::time::SystemTime::now()
+			.duration_since(std::time::SystemTime::UNIX_EPOCH)
+			.unwrap();
+	}
+
+	fn timestamp_sec(&self) -> u64 {
+		self.duration.as_secs()
+	}
+
+	fn timestamp_subsec_micros(&self) -> u32 {
+		self.duration.subsec_micros()
+	}
+}
+
+#[derive(Debug)]
+struct UdpSocketWrapper(UdpSocket);
+
+impl NtpUdpSocket for UdpSocketWrapper {
+	fn send_to<T: ToSocketAddrs>(
+		&self,
+		buf: &[u8],
+		addr: T,
+	) -> Result<usize, Error> {
+		match self.0.send_to(buf, addr) {
+			Ok(usize) => Ok(usize),
+			Err(_) => Err(Error::Network),
+		}
+	}
+
+	fn recv_from(&self, buf: &mut [u8]) -> Result<(usize, SocketAddr), Error> {
+		match self.0.recv_from(buf) {
+			Ok((size, addr)) => Ok((size, addr)),
+			Err(_) => Err(Error::Network),
+		}
+	}
+}
 
 #[no_mangle]
 pub unsafe extern "C" fn ocall_output_key(key: *const u8, key_len: u32) -> sgx_status_t {
 	let private_key_text_vec = unsafe { slice::from_raw_parts(key, key_len as usize) };
 	let str = String::from_utf8(private_key_text_vec.to_vec());
 	println!("I'm in ocall function {:?}", str);
+	sgx_status_t::SGX_SUCCESS
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ocall_time_ntp(time: *mut u32) -> sgx_status_t {
+	let socket =
+		UdpSocket::bind("0.0.0.0:0").expect("Unable to crate UDP socket");
+	socket
+		.set_read_timeout(Some(Duration::from_secs(2)))
+		.expect("Unable to set UDP socket read timeout");
+
+	let sock_wrapper = UdpSocketWrapper(socket);
+	let ntp_context = NtpContext::new(StdTimestampGen::default());
+	let result = sntpc::get_time(POOL_NTP_ADDR, sock_wrapper, ntp_context);
+
+	match result {
+		Ok(cur_time) => {
+			assert_ne!(cur_time.sec(), 0);
+			println!(
+				"Got time: {}.{}",
+				cur_time.sec(),
+				cur_time.sec_fraction() as u64 * 1_000_000 / u32::MAX as u64
+			);
+			*time = cur_time.sec()
+		}
+		Err(err) => println!("Err: {:?}", err),
+	}
 	sgx_status_t::SGX_SUCCESS
 }
 

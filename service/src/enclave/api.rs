@@ -198,3 +198,32 @@ pub fn enclave_account(enclave: &SgxEnclave) -> Result<AccountId32, Error> {
 	let tee_account_id = AccountId32::from(*pubkey.as_array_ref());
 	Ok(tee_account_id)
 }
+
+/// Decrypt private key according to release_time
+pub fn handle_private_keys(
+	enclave: &SgxEnclave,
+	key: Vec<u8>,
+	release_time:u32,
+	current_block:u32
+) {
+	let mut retval = sgx_status_t::SGX_SUCCESS;
+	let result = unsafe{
+		ffi::handle_private_keys(
+			enclave.geteid(),
+			&mut retval,
+			key.as_ptr(),
+			key.len() as u32,
+			release_time,
+			current_block
+		)
+	};
+	match result {
+		sgx_status_t::SGX_SUCCESS => {
+			println!("ECALL Set Nonce Success!");
+		},
+		_ => {
+			println!("[-] ECALL Set Nonce Enclave Failed {}!", result.as_str());
+			return
+		},
+	}
+}

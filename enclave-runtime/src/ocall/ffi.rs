@@ -11,6 +11,11 @@ extern "C" {
 		key_len: u32,
 	) -> sgx_status_t;
 
+	pub fn ocall_time_ntp(
+		ret_val: *mut sgx_status_t,
+		time: *mut u32
+	) -> sgx_status_t;
+
 	/// init quote, used by remote attestation
 	pub fn ocall_sgx_init_quote(
 		ret_val: *mut sgx_status_t,
