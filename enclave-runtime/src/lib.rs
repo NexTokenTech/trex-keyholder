@@ -85,9 +85,17 @@ use tkp_settings::files::*;
 use tkp_sgx_crypto::{ed25519, Ed25519Seal};
 use tkp_sgx_io::StaticSealedIO;
 use utils::node_metadata::NodeMetadata;
+// use for rpc
+use crate::attestation::hash_from_slice;
+use sp_core::blake2_256;
+pub use substrate_api_client::{
+	compose_extrinsic_offline, ExtrinsicParams, PlainTip, PlainTipExtrinsicParams,
+	PlainTipExtrinsicParamsBuilder, SubstrateDefaultSignedExtra, UncheckedExtrinsicV4,
+};
 
 lazy_static! {
-	static ref MIN_BINARY_HEAP: Mutex<BinaryHeap<Reverse<KeyPiece>>> = Mutex::new(BinaryHeap::new());
+	static ref MIN_BINARY_HEAP: Mutex<BinaryHeap<Reverse<KeyPiece>>> =
+		Mutex::new(BinaryHeap::new());
 	pub static ref NODE_META_DATA: Mutex<Vec<u8>> = Mutex::new(Vec::<u8>::new());
 }
 
@@ -101,6 +109,7 @@ struct KeyPiece {
 	release_time: u64,
 	from_block: u32,
 	key_piece: Vec<u8>,
+	ext_index: u32
 }
 
 impl Ord for KeyPiece {
@@ -177,11 +186,12 @@ pub extern "C" fn insert_key_piece(
 	key_len: u32,
 	release_time: u64,
 	current_block: u32,
+	ext_index: u32,
 ) -> sgx_status_t {
 	// Decrypt key piece inside the enclave.
 	let key_piece = unsafe { slice::from_raw_parts(key, key_len as usize) };
 	let decrypted_key = get_decrypt_cipher_text(key_piece.as_ptr() as *const u8, key_piece.len());
-	let ext_item = KeyPiece { release_time, from_block: current_block, key_piece: decrypted_key };
+	let ext_item = KeyPiece { release_time, from_block: current_block, key_piece: decrypted_key, ext_index };
 	info!("Inserting a new key piece to the enclave queue!");
 	let mut min_heap = MIN_BINARY_HEAP.lock().unwrap();
 	min_heap.push(Reverse(ext_item));
@@ -193,6 +203,7 @@ pub extern "C" fn get_expired_key(
 	key: *mut u8,
 	key_len: u32,
 	from_block: *mut u32,
+	ext_index: *mut u32
 ) -> sgx_status_t {
 	// reset the block height.
 	unsafe {
@@ -210,10 +221,11 @@ pub extern "C" fn get_expired_key(
 	if let Some(Reverse(v)) = min_heap.peek() {
 		if v.release_time <= now_time {
 			let expired_key = unsafe { slice::from_raw_parts_mut(key, key_len as usize) };
-			write_slice_and_whitespace_pad( expired_key, v.key_piece.clone())
+			write_slice_and_whitespace_pad(expired_key, v.key_piece.clone())
 				.expect("Key buffer is overflown!");
 			unsafe {
 				*from_block = v.from_block;
+				*ext_index = v.ext_index;
 			}
 			min_heap.pop();
 		}
@@ -258,6 +270,96 @@ pub unsafe extern "C" fn set_node_metadata(
 	for (_, item) in metadata_encode.iter().enumerate() {
 		node_metadata_slice_mem.push(*item);
 	}
+
+	sgx_status_t::SGX_SUCCESS
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn perform_expire_key(
+	genesis_hash: *const u8,
+	genesis_hash_size: u32,
+	nonce: *const u32,
+	expired_key: *const u8,
+	expired_key_size: u32,
+	block_number: *const u32,
+	ext_index: *const u32,
+	unchecked_extrinsic: *mut u8,
+	unchecked_extrinsic_size: u32,
+) -> sgx_status_t {
+	let chain_signer = Ed25519Seal::unseal_from_static_file().unwrap();
+	println!("[Enclave Expire Key] Ed25519 pub raw : {:?}", chain_signer.public().0);
+
+	println!("[Enclave] Compose extrinsic");
+	let genesis_hash_slice = slice::from_raw_parts(genesis_hash, genesis_hash_size as usize);
+	//let mut nonce_slice     = slice::from_raw_parts(nonce, nonce_size as usize);
+	let expired_key_slice = slice::from_raw_parts(expired_key, expired_key_size as usize);
+	let extrinsic_slice =
+		slice::from_raw_parts_mut(unchecked_extrinsic, unchecked_extrinsic_size as usize);
+	let signer = match Ed25519Seal::unseal_from_static_file() {
+		Ok(pair) => pair,
+		Err(e) => return e.into(),
+	};
+	println!("[Enclave] Restored ECC pubkey: {:?}", signer.public());
+
+	println!("decoded nonce: {}", *nonce);
+	let genesis_hash = hash_from_slice(genesis_hash_slice);
+	println!("decoded genesis_hash: {:?}", genesis_hash_slice);
+
+	let node_metadata_slice_mem = NODE_META_DATA.lock().unwrap();
+
+	let mut metadata_slice: Vec<u8> = Vec::<u8>::new();
+	for (_, item) in node_metadata_slice_mem.iter().enumerate() {
+		metadata_slice.push(*item);
+	}
+	let metadata = match NodeMetadata::decode(&mut metadata_slice.as_slice()).map_err(Error::Codec)
+	{
+		Err(e) => {
+			error!("Failed to decode node metadata: {:?}", e);
+			return sgx_status_t::SGX_ERROR_UNEXPECTED
+		},
+		Ok(m) => m,
+	};
+
+	let (register_enclave_call, runtime_spec_version, runtime_transaction_version) = (
+		metadata.call_indexes("Trex", "send_expired_key"),
+		metadata.get_runtime_version(),
+		metadata.get_runtime_transaction_version(),
+	);
+
+	let call =
+		match register_enclave_call {
+			Ok(c) => c,
+			Err(e) => {
+				error!("Failed to get the indexes for the register_enclave call from the metadata: {:?}", e);
+				return sgx_status_t::SGX_ERROR_UNEXPECTED
+			},
+		};
+
+	let extrinsic_params = PlainTipExtrinsicParams::new(
+		runtime_spec_version,
+		runtime_transaction_version,
+		*nonce,
+		genesis_hash,
+		PlainTipExtrinsicParamsBuilder::default(),
+	);
+
+	#[allow(clippy::redundant_clone)]
+	let xt = compose_extrinsic_offline!(
+		signer,
+		(call, expired_key_slice.to_vec(), block_number as u32, ext_index as u32),
+		extrinsic_params
+	);
+
+	let xt_encoded = xt.encode();
+	let xt_hash = blake2_256(&xt_encoded);
+	debug!("[Enclave] Encoded extrinsic ( len = {} B), hash {:?}", xt_encoded.len(), xt_hash);
+
+	match write_slice_and_whitespace_pad(extrinsic_slice, xt_encoded) {
+		Ok(_) => {},
+		Err(e) => {
+			println!("Result Error {:?}", e);
+		},
+	};
 
 	sgx_status_t::SGX_SUCCESS
 }

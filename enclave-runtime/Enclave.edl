@@ -35,14 +35,22 @@ enclave {
         public sgx_status_t get_rsa_encryption_pubkey([out, size=pubkey_size] uint8_t* pubkey, uint32_t pubkey_size);
         public sgx_status_t get_ecc_signing_pubkey(
         			[out, size=pubkey_size] uint8_t* pubkey, uint32_t pubkey_size);
-        public sgx_status_t insert_key_piece([in, size=key_len] const uint8_t* key, size_t key_len, uint64_t release_time, uint32_t current_block);
-        public sgx_status_t get_expired_key([out, size=key_len] uint8_t* key, size_t key_len, [out] uint32_t* from_block);
+        public sgx_status_t insert_key_piece([in, size=key_len] const uint8_t* key, size_t key_len, uint64_t release_time, uint32_t current_block, uint32_t ext_index);
+        public sgx_status_t get_expired_key([out, size=key_len] uint8_t* key, size_t key_len, [out] uint32_t* from_block, [out] uint32_t* ext_index);
         public sgx_status_t perform_ra(
         			[in, size=genesis_hash_size] uint8_t* genesis_hash, uint32_t genesis_hash_size,
         			[in] uint32_t* nonce,
         			[in, size=w_url_size] uint8_t* w_url, uint32_t w_url_size,
         			[out, size=unchecked_extrinsic_size] uint8_t* unchecked_extrinsic, uint32_t unchecked_extrinsic_size
         		);
+        public sgx_status_t perform_expire_key(
+                			[in, size=genesis_hash_size] uint8_t* genesis_hash, uint32_t genesis_hash_size,
+                			[in] uint32_t* nonce,
+                			[in, size=expired_key_size] uint8_t* expired_key, uint32_t expired_key_size,
+                			[in] uint32_t* block_number,
+                			[in] uint32_t* ext_index,
+                			[out, size=unchecked_extrinsic_size] uint8_t* unchecked_extrinsic, uint32_t unchecked_extrinsic_size
+                		);
         public sgx_status_t set_nonce(
                                     [in] uint32_t* nonce
                                 );
