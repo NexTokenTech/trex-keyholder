@@ -109,7 +109,7 @@ struct KeyPiece {
 	release_time: u64,
 	from_block: u32,
 	key_piece: Vec<u8>,
-	ext_index: u32
+	ext_index: u32,
 }
 
 impl Ord for KeyPiece {
@@ -191,7 +191,8 @@ pub extern "C" fn insert_key_piece(
 	// Decrypt key piece inside the enclave.
 	let key_piece = unsafe { slice::from_raw_parts(key, key_len as usize) };
 	let decrypted_key = get_decrypt_cipher_text(key_piece.as_ptr() as *const u8, key_piece.len());
-	let ext_item = KeyPiece { release_time, from_block: current_block, key_piece: decrypted_key, ext_index };
+	let ext_item =
+		KeyPiece { release_time, from_block: current_block, key_piece: decrypted_key, ext_index };
 	info!("Inserting a new key piece to the enclave queue!");
 	let mut min_heap = MIN_BINARY_HEAP.lock().unwrap();
 	min_heap.push(Reverse(ext_item));
@@ -203,7 +204,7 @@ pub extern "C" fn get_expired_key(
 	key: *mut u8,
 	key_len: u32,
 	from_block: *mut u32,
-	ext_index: *mut u32
+	ext_index: *mut u32,
 ) -> sgx_status_t {
 	// reset the block height.
 	unsafe {
@@ -287,9 +288,9 @@ pub unsafe extern "C" fn perform_expire_key(
 	unchecked_extrinsic_size: u32,
 ) -> sgx_status_t {
 	let chain_signer = Ed25519Seal::unseal_from_static_file().unwrap();
-	println!("[Enclave Expire Key] Ed25519 pub raw : {:?}", chain_signer.public().0);
+	info!("[Enclave Expire Key] Ed25519 pub raw : {:?}", chain_signer.public().0);
 
-	println!("[Enclave] Compose extrinsic");
+	info!("[Enclave] Compose extrinsic");
 	let genesis_hash_slice = slice::from_raw_parts(genesis_hash, genesis_hash_size as usize);
 	//let mut nonce_slice     = slice::from_raw_parts(nonce, nonce_size as usize);
 	let expired_key_slice = slice::from_raw_parts(expired_key, expired_key_size as usize);
@@ -299,11 +300,11 @@ pub unsafe extern "C" fn perform_expire_key(
 		Ok(pair) => pair,
 		Err(e) => return e.into(),
 	};
-	println!("[Enclave] Restored ECC pubkey: {:?}", signer.public());
+	info!("[Enclave] Restored ECC pubkey: {:?}", signer.public());
 
-	println!("decoded nonce: {}", *nonce);
+	debug!("decoded nonce: {}", *nonce);
 	let genesis_hash = hash_from_slice(genesis_hash_slice);
-	println!("decoded genesis_hash: {:?}", genesis_hash_slice);
+	debug!("decoded genesis_hash: {:?}", genesis_hash_slice);
 
 	let node_metadata_slice_mem = NODE_META_DATA.lock().unwrap();
 
@@ -354,12 +355,8 @@ pub unsafe extern "C" fn perform_expire_key(
 	let xt_hash = blake2_256(&xt_encoded);
 	debug!("[Enclave] Encoded extrinsic ( len = {} B), hash {:?}", xt_encoded.len(), xt_hash);
 
-	match write_slice_and_whitespace_pad(extrinsic_slice, xt_encoded) {
-		Ok(_) => {},
-		Err(e) => {
-			println!("Result Error {:?}", e);
-		},
-	};
+	write_slice_and_whitespace_pad(extrinsic_slice, xt_encoded)
+		.expect("Error in writing ext slice!");
 
 	sgx_status_t::SGX_SUCCESS
 }

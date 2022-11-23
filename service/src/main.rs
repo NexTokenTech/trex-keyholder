@@ -150,7 +150,8 @@ fn main() {
 													);
 													match event.phase {
 														ApplyExtrinsic(ext_index) => {
-															println!("decoded: {:?}", ext_index);
+															debug!("Decoded Ext Index: {:?}", ext_index);
+															info!("Expect Release Time {}", trex_data.release_time);
 															insert_key_piece(
 																local_enclave.borrow(),
 																shielded_key,
@@ -179,16 +180,16 @@ fn main() {
 					},
 				}
 				// take expired key piece out of the enclave.
-				while let Some(expired_key_tuple) = get_expired_key(local_enclave.borrow()) {
-					println!("Get expired key piece: {:X?}", expired_key_tuple.0.as_slice());
+				while let Some((key, block_num, ext_idx) ) = get_expired_key(local_enclave.borrow()) {
+					info!("Get expired key piece: {:X?}", key.as_slice());
 					send_expired_key(
 						&config,
 						local_enclave.borrow(),
 						local_tee_account_id.borrow(),
-						local_genesis_hash.borrow(),
-						expired_key_tuple.0,
-						expired_key_tuple.1,
-						expired_key_tuple.2,
+						&local_genesis_hash.to_vec(),
+						key,
+						block_num,
+						ext_idx,
 					);
 				}
 			}

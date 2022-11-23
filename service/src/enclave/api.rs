@@ -10,11 +10,8 @@ use std::io::{Read, Write};
 use std::{fs::File, path::PathBuf};
 use tkp_settings::{
 	files::{ENCLAVE_FILE, ENCLAVE_TOKEN},
-	worker::EXTRINSIC_MAX_SIZE,
+	keyholder::{KEY_EXT_MAX_SIZE, AES_KEY_MAX_SIZE, RA_EXT_MAX_SIZE},
 };
-
-/// 256bit key plus 96bit nonce
-pub const MAX_KEY_SIZE: usize = 32+12;
 
 /// init enclave
 pub fn enclave_init() -> SgxResult<SgxEnclave> {
@@ -101,7 +98,7 @@ pub fn perform_ra(
 ) -> Result<Vec<u8>, Error> {
 	let mut retval = sgx_status_t::SGX_SUCCESS;
 
-	let unchecked_extrinsic_size = EXTRINSIC_MAX_SIZE;
+	let unchecked_extrinsic_size = RA_EXT_MAX_SIZE;
 	let mut unchecked_extrinsic: Vec<u8> = vec![0u8; unchecked_extrinsic_size as usize];
 
 	let result = unsafe {
@@ -207,7 +204,7 @@ pub fn insert_key_piece(
 	key: Vec<u8>,
 	release_time: u64,
 	current_block: u32,
-	ext_index: u32
+	ext_index: u32,
 ) -> Result<(), Error> {
 	let mut retval = sgx_status_t::SGX_SUCCESS;
 	let result = unsafe {
@@ -218,7 +215,7 @@ pub fn insert_key_piece(
 			key.len() as u32,
 			release_time,
 			current_block,
-			ext_index
+			ext_index,
 		)
 	};
 	ensure!(result == sgx_status_t::SGX_SUCCESS, Error::Sgx(result));
@@ -226,8 +223,8 @@ pub fn insert_key_piece(
 	Ok(())
 }
 
-pub fn get_expired_key(enclave: &SgxEnclave) -> Option<(Vec<u8>,u32,u32)> {
-	let mut key: Vec<u8> = vec![0u8; MAX_KEY_SIZE];
+pub fn get_expired_key(enclave: &SgxEnclave) -> Option<(Vec<u8>, u32, u32)> {
+	let mut key: Vec<u8> = vec![0u8; AES_KEY_MAX_SIZE];
 	let mut from_block: u32 = 0;
 	let mut ext_index: u32 = 0;
 	let mut retval = sgx_status_t::SGX_SUCCESS;
@@ -236,9 +233,9 @@ pub fn get_expired_key(enclave: &SgxEnclave) -> Option<(Vec<u8>,u32,u32)> {
 			enclave.geteid(),
 			&mut retval,
 			key.as_mut_ptr(),
-			MAX_KEY_SIZE as u32,
+			AES_KEY_MAX_SIZE as u32,
 			&mut from_block,
-			&mut ext_index
+			&mut ext_index,
 		)
 	};
 	if retval != sgx_status_t::SGX_SUCCESS || res != sgx_status_t::SGX_SUCCESS {
@@ -246,7 +243,7 @@ pub fn get_expired_key(enclave: &SgxEnclave) -> Option<(Vec<u8>,u32,u32)> {
 		return None
 	}
 	if from_block > 0 {
-		Some((key,from_block,ext_index))
+		Some((key, from_block, ext_index))
 	} else {
 		None
 	}
@@ -257,12 +254,12 @@ pub fn perform_expire_key(
 	genesis_hash: Vec<u8>,
 	nonce: u32,
 	expired_key: Vec<u8>,
-	block_number:u32,
-	ext_index:u32
+	block_number: u32,
+	ext_index: u32,
 ) -> Result<Vec<u8>, Error> {
 	let mut retval = sgx_status_t::SGX_SUCCESS;
 
-	let unchecked_extrinsic_size = EXTRINSIC_MAX_SIZE;
+	let unchecked_extrinsic_size = KEY_EXT_MAX_SIZE;
 	let mut unchecked_extrinsic: Vec<u8> = vec![0u8; unchecked_extrinsic_size as usize];
 
 	let result = unsafe {
