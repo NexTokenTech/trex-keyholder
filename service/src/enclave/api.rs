@@ -1,17 +1,20 @@
+use crate::enclave::{error::Error, ffi};
+use frame_support::ensure;
 use log::*;
+use sgx_crypto_helper::rsa3072::Rsa3072PubKey;
 use sgx_types::*;
 use sgx_urts::SgxEnclave;
+use sp_core::{crypto::AccountId32, ed25519};
 /// keep this api free from chain-specific types!
 use std::io::{Read, Write};
 use std::{fs::File, path::PathBuf};
-use frame_support::ensure;
-use sgx_crypto_helper::rsa3072::Rsa3072PubKey;
-use sp_core::crypto::AccountId32;
-use sp_core::ed25519;
-use tkp_settings::files::{ENCLAVE_FILE, ENCLAVE_TOKEN};
-use tkp_settings::worker::EXTRINSIC_MAX_SIZE;
-use crate::enclave::error::Error;
-use crate::enclave::ffi;
+use tkp_settings::{
+	files::{ENCLAVE_FILE, ENCLAVE_TOKEN},
+	worker::EXTRINSIC_MAX_SIZE,
+};
+
+/// 256bit key plus 96bit nonce
+pub const MAX_KEY_SIZE: usize = 32+12;
 
 /// init enclave
 pub fn enclave_init() -> SgxResult<SgxEnclave> {
@@ -133,7 +136,7 @@ pub fn get_shielding_pubkey(enclave: &SgxEnclave) -> Rsa3072PubKey {
 			pubkey.len() as u32,
 		);
 	};
-	let rsa_pubkey: Rsa3072PubKey = unsafe {std::mem::transmute(pubkey)};
+	let rsa_pubkey: Rsa3072PubKey = unsafe { std::mem::transmute(pubkey) };
 	debug!("Enclave's RSA pubkey:\n{:?}", rsa_pubkey);
 	rsa_pubkey
 }
@@ -176,7 +179,6 @@ pub fn set_nonce(enclave: &SgxEnclave, nonce: &u32) {
 	}
 }
 
-
 /// Get the public signing key of the TEE.
 pub fn enclave_account(enclave: &SgxEnclave) -> Result<AccountId32, Error> {
 	let mut retval = sgx_status_t::SGX_SUCCESS;
@@ -197,4 +199,51 @@ pub fn enclave_account(enclave: &SgxEnclave) -> Result<AccountId32, Error> {
 	let pubkey = ed25519::Public::from_raw(pubkey);
 	let tee_account_id = AccountId32::from(*pubkey.as_array_ref());
 	Ok(tee_account_id)
+}
+
+/// Insert private key piece according to the release time
+pub fn insert_key_piece(
+	enclave: &SgxEnclave,
+	key: Vec<u8>,
+	release_time: u64,
+	current_block: u32,
+) -> Result<(), Error> {
+	let mut retval = sgx_status_t::SGX_SUCCESS;
+	let result = unsafe {
+		ffi::insert_key_piece(
+			enclave.geteid(),
+			&mut retval,
+			key.as_ptr(),
+			key.len() as u32,
+			release_time,
+			current_block,
+		)
+	};
+	ensure!(result == sgx_status_t::SGX_SUCCESS, Error::Sgx(result));
+	ensure!(retval == sgx_status_t::SGX_SUCCESS, Error::Sgx(retval));
+	Ok(())
+}
+
+pub fn get_expired_key(enclave: &SgxEnclave) -> Option<Vec<u8>> {
+	let mut key: Vec<u8> = vec![0u8; MAX_KEY_SIZE];
+	let mut from_block: u32 = 0;
+	let mut retval = sgx_status_t::SGX_SUCCESS;
+	let res = unsafe {
+		ffi::get_expired_key(
+			enclave.geteid(),
+			&mut retval,
+			key.as_mut_ptr(),
+			MAX_KEY_SIZE as u32,
+			&mut from_block,
+		)
+	};
+	if retval != sgx_status_t::SGX_SUCCESS || res != sgx_status_t::SGX_SUCCESS {
+		info!("[-] ECALL Get Key Failed {}!", res.as_str());
+		return None
+	}
+	if from_block > 0 {
+		Some(key)
+	} else {
+		None
+	}
 }
