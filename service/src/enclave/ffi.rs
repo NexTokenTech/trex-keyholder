@@ -68,6 +68,7 @@ extern "C" {
 		node_metadata_size: u32,
 	) -> sgx_status_t;
 
+	/// Construct ext for expired key
 	pub fn perform_expire_key(
 		eid: sgx_enclave_id_t,
 		retval: *mut sgx_status_t,
