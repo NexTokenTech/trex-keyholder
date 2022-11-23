@@ -36,13 +36,10 @@ use std::str;
 // substrate modules
 use frame_system::EventRecord;
 // use sp_runtime::generic::SignedBlock as SignedBlockG;
-use sp_core::{crypto::Ss58Codec, sr25519, Decode, Encode, H256 as Hash};
-use std::{
-	borrow::Borrow,
-	sync::{mpsc::channel, Arc},
-	thread,
-	time::Duration,
-};
+use frame_system::Phase::ApplyExtrinsic;
+use sgx_urts::SgxEnclave;
+use sp_core::{sr25519, Decode, Encode, H256 as Hash};
+use std::{borrow::Borrow, sync::mpsc::channel, thread, time::Duration};
 use substrate_api_client::{
 	rpc::WsRpcClient, utils::FromHexString, Api, AssetTipExtrinsicParams, XtStatus,
 };
@@ -55,7 +52,7 @@ use config::Config as ApiConfig;
 use enclave::api::*;
 use utils::{
 	node_metadata::NodeMetadata,
-	node_rpc::{get_api, get_free_balance, get_genesis_hash, get_nonce},
+	node_rpc::{get_api, get_genesis_hash, get_nonce},
 };
 
 /// Arguments for the Key-holding services.
@@ -66,6 +63,13 @@ struct Args {
 	#[arg(short, long, default_value_t=("config.yml".to_string()))]
 	config: String,
 }
+
+enum PerformAction {
+	Attestation,
+	SendExpireKey,
+}
+
+type Events = Vec<EventRecord<RuntimeEvent, Hash>>;
 
 pub type DecodedTREXData = TREXData<AccountId, Moment, BlockNumber>;
 
@@ -102,20 +106,17 @@ fn main() {
 	);
 
 	let trusted_url = config.mu_ra_url();
-	let uxt = perform_ra(&enclave, genesis_hash, nonce, trusted_url.as_bytes().to_vec()).unwrap();
+	let uxt =
+		perform_ra(&enclave, genesis_hash.clone(), nonce, trusted_url.as_bytes().to_vec()).unwrap();
 
-	let mut xthex = hex::encode(uxt);
-	xthex.insert_str(0, "0x");
-
-	info!("Generated RA EXT");
-	println!("[>] Register the enclave (send the extrinsic)");
-	let register_enclave_xt_hash = api.send_extrinsic(xthex, XtStatus::Finalized).unwrap();
-	println!("[<] Extrinsic got finalized. Hash: {:?}\n", register_enclave_xt_hash);
+	send_uxt(&config, uxt, XtStatus::Finalized);
 
 	// Spawn a thread to listen to the TREX data event.
 	let event_url = config.node_url();
 	let mut handlers = Vec::new();
 	let local_enclave = enclave.clone();
+	let local_tee_account_id = tee_account_id.clone();
+	let local_genesis_hash = genesis_hash.clone();
 	handlers.push(thread::spawn(move || {
 		// Listen to TREXDataSent events.
 		let client = WsRpcClient::new(&event_url);
@@ -147,13 +148,21 @@ fn main() {
 														"Found a shielded key {:X?}",
 														shielded_key.as_slice()
 													);
-													insert_key_piece(
-														local_enclave.borrow(),
-														shielded_key,
-														trex_data.release_time,
-														trex_data.current_block,
-													)
-													.expect("Cannot insert shielded key!");
+													match event.phase {
+														ApplyExtrinsic(ext_index) => {
+															debug!("Decoded Ext Index: {:?}", ext_index);
+															info!("Expect Release Time {}", trex_data.release_time);
+															insert_key_piece(
+																local_enclave.borrow(),
+																shielded_key,
+																trex_data.release_time,
+																trex_data.current_block,
+																ext_index,
+															)
+															.expect("Cannot insert shielded key!");
+														},
+														_ => {},
+													}
 												}
 											}
 										},
@@ -171,8 +180,17 @@ fn main() {
 					},
 				}
 				// take expired key piece out of the enclave.
-				while let Some(key) = get_expired_key(local_enclave.borrow()) {
-					println!("Get expired key piece: {:X?}", key.as_slice());
+				while let Some((key, block_num, ext_idx) ) = get_expired_key(local_enclave.borrow()) {
+					info!("Get expired key piece: {:X?}", key.as_slice());
+					send_expired_key(
+						&config,
+						local_enclave.borrow(),
+						local_tee_account_id.borrow(),
+						&local_genesis_hash.to_vec(),
+						key,
+						block_num,
+						ext_idx,
+					);
 				}
 			}
 			// // match event with trex event
@@ -187,10 +205,63 @@ fn main() {
 	enclave.destroy();
 }
 
-type Events = Vec<EventRecord<RuntimeEvent, Hash>>;
-
 fn parse_events(event: String) -> Result<Events, String> {
 	let _unhex = Vec::from_hex(event).map_err(|_| "Decoding Events Failed".to_string())?;
 	let mut _er_enc = _unhex.as_slice();
 	Events::decode(&mut _er_enc).map_err(|_| "Decoding Events Failed".to_string())
+}
+
+fn send_expired_key(
+	config: &ApiConfig,
+	enclave: &SgxEnclave,
+	tee_account_id: &AccountId,
+	genesis_hash: &Vec<u8>,
+	expired_key: Vec<u8>,
+	block_number: u32,
+	ext_index: u32,
+) {
+	let api = get_api(&config).unwrap();
+
+	// ------------------------------------------------------------------------
+	// Perform an unchecked extrinsic back.
+	let nonce = get_nonce(&tee_account_id, &config).unwrap();
+	set_nonce(&enclave, &nonce);
+
+	let metadata = api.metadata.clone();
+	let runtime_spec_version = api.runtime_version.spec_version;
+	let runtime_transaction_version = api.runtime_version.transaction_version;
+
+	set_node_metadata(
+		&enclave,
+		NodeMetadata::new(metadata, runtime_spec_version, runtime_transaction_version).encode(),
+	);
+
+	let uxt = perform_expire_key(
+		&enclave,
+		genesis_hash.to_owned(),
+		nonce,
+		expired_key,
+		block_number,
+		ext_index,
+	)
+	.unwrap();
+
+	send_uxt(&config, uxt, XtStatus::SubmitOnly);
+}
+
+fn send_uxt(config: &ApiConfig, uxt: Vec<u8>, exit_on: XtStatus) {
+	let api = get_api(&config).unwrap();
+	let mut xthex = hex::encode(uxt);
+	xthex.insert_str(0, "0x");
+
+	debug!("Generated EXT");
+	debug!("[>] Send the extrinsic");
+	let register_enclave_xt_hash = api.send_extrinsic(xthex, exit_on).unwrap();
+	let exit_on_status = match exit_on {
+		XtStatus::SubmitOnly => "submitted",
+		XtStatus::InBlock => "in block",
+		XtStatus::Finalized => "finalized",
+		_ => "",
+	};
+	debug!("[<] Extrinsic got {:?}. Hash: {:?}\n", exit_on_status, register_enclave_xt_hash);
 }

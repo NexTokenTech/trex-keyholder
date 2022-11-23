@@ -4056,6 +4056,7 @@ dependencies = [
  "env_logger",
  "frame-support",
  "frame-system",
+ "futures",
  "hex",
  "log",
  "pallet-trex",

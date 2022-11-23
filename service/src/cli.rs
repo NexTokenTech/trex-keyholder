@@ -9,7 +9,7 @@ use aes_gcm::{
 };
 use clap::Parser;
 use config::Config as ApiConfig;
-use enclave::api::{MAX_KEY_SIZE, enclave_init, enclave_account, };
+use enclave::api::{enclave_init, enclave_account};
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
 #[allow(unused)]
@@ -26,6 +26,7 @@ use substrate_api_client::{
 #[allow(unused)]
 use tee_primitives::Enclave;
 use trex_primitives::{KeyPiece, ShieldedKey};
+use tkp_settings::keyholder::AES_KEY_MAX_SIZE;
 use utils::{
 	node_metadata::NodeMetadata,
 	node_rpc::{
@@ -111,14 +112,14 @@ fn main() {
 			let (rsa_pubkey, tee_account_id) = get_shielding_key(&config).unwrap();
 			// get aes key
 			let mut key_slice = [0u8; KEY_SIZE];
-			let mut nonce_slice = AES_NONCE;
+			let nonce_slice = AES_NONCE;
 			OsRng.fill_bytes(&mut key_slice);
 			let cipher = Aes256Gcm::new_from_slice(&key_slice).expect("Random key slice does not match the size!");
 			let aes_nonce = Nonce::from_slice(nonce_slice);
 			// create cipher text
 			let ciphertext = cipher.encrypt(aes_nonce, b"a test cipher text".as_ref()).unwrap();
 			// encrypt private key through rsa pubkey
-			let mut key_piece = [0u8; MAX_KEY_SIZE];
+			let mut key_piece = [0u8; AES_KEY_MAX_SIZE];
 			let (first, second) = key_piece.split_at_mut(KEY_SIZE);
 			first.copy_from_slice(&key_slice);
 			second.copy_from_slice(nonce_slice);

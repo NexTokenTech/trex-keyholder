@@ -27,6 +27,7 @@ extern "C" {
 		key_len: u32,
 		release_time: u64,
 		current_block: u32,
+		ext_index: u32,
 	) -> sgx_status_t;
 
 	/// check if the key piece is expired and extract it from the enclave if so.
@@ -36,6 +37,7 @@ extern "C" {
 		key: *mut u8,
 		key_len: u32,
 		from_block: *mut u32,
+		ext_index: *mut u32,
 	) -> sgx_status_t;
 
 	/// generate remote attestation report and construct an unchecked extrinsic which will send by pallet-teerex
@@ -64,6 +66,21 @@ extern "C" {
 		retval: *mut sgx_status_t,
 		node_metadata: *const u8,
 		node_metadata_size: u32,
+	) -> sgx_status_t;
+
+	/// Construct ext for expired key
+	pub fn perform_expire_key(
+		eid: sgx_enclave_id_t,
+		retval: *mut sgx_status_t,
+		genesis_hash: *const u8,
+		genesis_hash_size: u32,
+		nonce: *const u32,
+		expired_key: *const u8,
+		expired_key_size: u32,
+		block_number: *const u32,
+		ext_index: *const u32,
+		unchecked_extrinsic: *mut u8,
+		unchecked_extrinsic_size: u32,
 	) -> sgx_status_t;
 
 	/// test decrypt cipher

@@ -60,14 +60,6 @@ impl NtpUdpSocket for UdpSocketWrapper {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn ocall_output_key(key: *const u8, key_len: u32) -> sgx_status_t {
-	let private_key_text_vec = unsafe { slice::from_raw_parts(key, key_len as usize) };
-	let str = String::from_utf8(private_key_text_vec.to_vec());
-	debug!("Print out the key string: {:?}", str);
-	sgx_status_t::SGX_SUCCESS
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn ocall_time_ntp(time: *mut u64) -> sgx_status_t {
 	let socket = UdpSocket::bind("0.0.0.0:0").expect("Unable to crate UDP socket");
 	socket
