@@ -1,3 +1,19 @@
+/*
+ Copyright 2022 NexToken Tech LLC
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+
+*/
 mod config;
 mod enclave;
 mod ocall;
@@ -155,7 +171,6 @@ fn main() {
 				info!("[>] Send the TREX data)");
 				let send_xt_hash = api.send_extrinsic(xthex, XtStatus::Finalized).unwrap();
 				info!("[<] Extrinsic got finalized. Hash: {:?}\n", send_xt_hash);
-				// TODO! take the decrypted key from the TREX blockchain and decrypt original cipher text.
 			}
 		},
 		Action::ShieldingPubKey => {

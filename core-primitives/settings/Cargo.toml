@@ -1,7 +1,10 @@
 [package]
 name = "tkp-settings"
 version = "0.9.0"
-authors = ["Integritee AG <hello@integritee.network>"]
+authors = ["NexToken Tech LLC <team@trex.ink>"]
+homepage = "https://trex.ink"
+repository = "https://github.com/NexTokenTech/trex-keyholder"
+license = "Apache-2.0"
 edition = "2021"
 
 [dependencies]
