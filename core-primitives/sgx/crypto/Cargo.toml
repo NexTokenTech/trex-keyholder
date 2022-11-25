@@ -2,7 +2,10 @@
 name = "tkp-sgx-crypto"
 version = "0.8.0"
 edition = "2021"
-
+authors = ["Integritee AG <hello@integritee.network>"]
+homepage = "https://trex.ink"
+repository = "https://github.com/NexTokenTech/trex-keyholder"
+license = "Apache-2.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
