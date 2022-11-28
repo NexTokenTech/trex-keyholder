@@ -87,11 +87,13 @@ use tkp_sgx_io::StaticSealedIO;
 use utils::node_metadata::NodeMetadata;
 // use for rpc
 use crate::attestation::hash_from_slice;
+use sgx_tcrypto::rsgx_sha256_slice;
 use sp_core::blake2_256;
 pub use substrate_api_client::{
 	compose_extrinsic_offline, ExtrinsicParams, PlainTip, PlainTipExtrinsicParams,
 	PlainTipExtrinsicParamsBuilder, SubstrateDefaultSignedExtra, UncheckedExtrinsicV4,
 };
+use tkp_hash::{Sha256PrivateKeyHash, Sha256PrivateKeyTime};
 
 lazy_static! {
 	static ref MIN_BINARY_HEAP: Mutex<BinaryHeap<Reverse<KeyPiece>>> =
@@ -190,12 +192,52 @@ pub extern "C" fn insert_key_piece(
 ) -> sgx_status_t {
 	// Decrypt key piece inside the enclave.
 	let key_piece = unsafe { slice::from_raw_parts(key, key_len as usize) };
-	let decrypted_key = get_decrypt_cipher_text(key_piece.as_ptr() as *const u8, key_piece.len());
-	let ext_item =
-		KeyPiece { release_time, from_block: current_block, key_piece: decrypted_key, ext_index };
-	info!("Inserting a new key piece to the enclave queue!");
-	let mut min_heap = MIN_BINARY_HEAP.lock().unwrap();
-	min_heap.push(Reverse(ext_item));
+	let key_hash_encode = get_decrypt_cipher_text(key_piece.as_ptr() as *const u8, key_piece.len());
+	// Decode key_hash from key_hash_encode
+	let key_hash =
+		match Sha256PrivateKeyHash::decode(&mut key_hash_encode.as_slice()).map_err(Error::Codec) {
+			Err(e) => {
+				error!("Failed to decode node metadata: {:?}", e);
+				return sgx_status_t::SGX_ERROR_UNEXPECTED
+			},
+			Ok(m) => m,
+		};
+	// Construct key time struct and encode
+	let key_time = Sha256PrivateKeyTime {
+		aes_private_key: key_hash.aes_private_key.clone(),
+		timestamp: release_time,
+	};
+	let key_time_encode = key_time.encode();
+
+	// Convert the key_time_encode to a slice and calculate its SHA256
+	let result = rsgx_sha256_slice(&key_time_encode.as_slice());
+
+	// Determine whether the hash value of the key and time matches the passed hash value
+	let mut hash_do_match = false;
+	match result {
+		Ok(output_hash) =>
+			if output_hash.to_vec() == key_hash.hash {
+				hash_do_match = true;
+				info!("Hash values are matched,will insert into heap");
+			} else {
+				info!("Hash values do not match,will not insert into heap");
+			},
+		Err(_x) => {
+			info!("Hash values do not match,will not insert into heap");
+		},
+	}
+	if hash_do_match {
+		let decrypted_key = key_hash.aes_private_key;
+		let ext_item = KeyPiece {
+			release_time,
+			from_block: current_block,
+			key_piece: decrypted_key,
+			ext_index,
+		};
+		info!("Inserting a new key piece to the enclave queue!");
+		let mut min_heap = MIN_BINARY_HEAP.lock().unwrap();
+		min_heap.push(Reverse(ext_item));
+	}
 	sgx_status_t::SGX_SUCCESS
 }
 

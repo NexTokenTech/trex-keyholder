@@ -19,13 +19,14 @@ mod enclave;
 mod ocall;
 mod utils;
 
+use crate::enclave::api::get_shielding_pubkey;
 use aes_gcm::{
 	aead::{rand_core::RngCore, Aead, KeyInit, OsRng},
 	Aes256Gcm, Nonce,
 };
 use clap::Parser;
 use config::Config as ApiConfig;
-use enclave::api::{enclave_init, enclave_account};
+use enclave::api::{enclave_account, enclave_init};
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
 #[allow(unused)]
@@ -41,8 +42,9 @@ use substrate_api_client::{
 };
 #[allow(unused)]
 use tee_primitives::Enclave;
-use trex_primitives::{KeyPiece, ShieldedKey};
+use tkp_hash::{Hash, Sha256PrivateKeyHash, Sha256PrivateKeyTime};
 use tkp_settings::keyholder::AES_KEY_MAX_SIZE;
+use trex_primitives::{KeyPiece, ShieldedKey};
 use utils::{
 	node_metadata::NodeMetadata,
 	node_rpc::{
@@ -50,7 +52,6 @@ use utils::{
 		get_shielding_key, TREX,
 	},
 };
-use crate::enclave::api::get_shielding_pubkey;
 
 /// Arguments for the cli.
 #[derive(Parser, Debug)]
@@ -109,7 +110,7 @@ fn main() {
 			let signer = sr25519::Pair::from_seed_slice(seed.hex.as_slice()).unwrap();
 			let pubkey = signer.public();
 			let tx_sender_account_id = AccountId::from(*pubkey.as_array_ref());
-			info!("Account ID: {:?}", tx_sender_account_id.to_ss58check());
+			println!("Account ID: {:?}", tx_sender_account_id.to_ss58check());
 			// prepare websocket connection.
 			let api = get_api(&config).unwrap();
 			// obtain metadata genesis_hash nonce runtime_spec_version runtime_transaction_version.
@@ -130,7 +131,8 @@ fn main() {
 			let mut key_slice = [0u8; KEY_SIZE];
 			let nonce_slice = AES_NONCE;
 			OsRng.fill_bytes(&mut key_slice);
-			let cipher = Aes256Gcm::new_from_slice(&key_slice).expect("Random key slice does not match the size!");
+			let cipher = Aes256Gcm::new_from_slice(&key_slice)
+				.expect("Random key slice does not match the size!");
 			let aes_nonce = Nonce::from_slice(nonce_slice);
 			// create cipher text
 			let ciphertext = cipher.encrypt(aes_nonce, b"a test cipher text".as_ref()).unwrap();
@@ -139,9 +141,22 @@ fn main() {
 			let (first, second) = key_piece.split_at_mut(KEY_SIZE);
 			first.copy_from_slice(&key_slice);
 			second.copy_from_slice(nonce_slice);
+			// generate hash of Sha256PrivateKeyTime which contains key_piece and release_time
+			let release_time = release_time();
+			let key_time = Sha256PrivateKeyTime {
+				aes_private_key: key_piece.clone().to_vec(),
+				timestamp: release_time.clone(),
+			};
+			let key_time_hash = key_time.hash_integer();
+			// construct key hash struct for shielding
+			let key_hash =
+				Sha256PrivateKeyHash { aes_private_key: key_piece.clone().to_vec(), hash: key_time_hash };
+			info!("{:?}", key_hash);
+			let key_hash_encode = key_hash.encode();
+			// shielding key hash struct
 			let mut cipher_private_key: Vec<u8> = Vec::new();
 			rsa_pubkey
-				.encrypt_buffer(&key_piece, &mut cipher_private_key)
+				.encrypt_buffer(&key_hash_encode, &mut cipher_private_key)
 				.expect("Cannot shield key pieces!");
 			// construct key_pieces
 			let key: ShieldedKey = cipher_private_key;
@@ -159,7 +174,7 @@ fn main() {
 				);
 				let xt = compose_extrinsic_offline!(
 					signer,
-					(call, ciphertext.clone(), release_time(), key_pieces.clone()),
+					(call, ciphertext.clone(), release_time, key_pieces.clone()),
 					extrinsic_params
 				);
 
