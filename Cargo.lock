@@ -1345,6 +1345,11 @@ dependencies = [
 ]
 
 [[package]]
+name = "hashbrown_tstd"
+version = "0.12.0"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?branch=master#c3d82372dff81e5bafb07f71bc8ad532d06b504e"
+
+[[package]]
 name = "heck"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2956,6 +2961,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "sgx_alloc"
+version = "1.1.6"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?branch=master#c3d82372dff81e5bafb07f71bc8ad532d06b504e"
+
+[[package]]
+name = "sgx_backtrace_sys"
+version = "1.1.6"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?branch=master#c3d82372dff81e5bafb07f71bc8ad532d06b504e"
+dependencies = [
+ "cc",
+ "sgx_build_helper",
+ "sgx_libc",
+]
+
+[[package]]
+name = "sgx_build_helper"
+version = "1.1.6"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?branch=master#c3d82372dff81e5bafb07f71bc8ad532d06b504e"
+
+[[package]]
 name = "sgx_crypto_helper"
 version = "1.1.5"
 source = "git+https://github.com/apache/incubator-teaclave-sgx-sdk?tag=v1.1.5#d2d339cbb005f676bb700059bd51dc689c025f6b"
@@ -2967,6 +2992,53 @@ dependencies = [
  "serde_derive",
  "sgx_types 1.1.3",
  "sgx_ucrypto",
+]
+
+[[package]]
+name = "sgx_demangle"
+version = "1.1.6"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?branch=master#c3d82372dff81e5bafb07f71bc8ad532d06b504e"
+
+[[package]]
+name = "sgx_libc"
+version = "1.1.6"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?branch=master#c3d82372dff81e5bafb07f71bc8ad532d06b504e"
+dependencies = [
+ "sgx_types 1.1.5",
+]
+
+[[package]]
+name = "sgx_tprotected_fs"
+version = "1.1.6"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?branch=master#c3d82372dff81e5bafb07f71bc8ad532d06b504e"
+dependencies = [
+ "sgx_trts",
+ "sgx_types 1.1.5",
+]
+
+[[package]]
+name = "sgx_trts"
+version = "1.1.6"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?branch=master#c3d82372dff81e5bafb07f71bc8ad532d06b504e"
+dependencies = [
+ "sgx_libc",
+ "sgx_types 1.1.5",
+]
+
+[[package]]
+name = "sgx_tstd"
+version = "1.1.6"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?branch=master#c3d82372dff81e5bafb07f71bc8ad532d06b504e"
+dependencies = [
+ "hashbrown_tstd",
+ "sgx_alloc",
+ "sgx_backtrace_sys",
+ "sgx_demangle",
+ "sgx_libc",
+ "sgx_tprotected_fs",
+ "sgx_trts",
+ "sgx_types 1.1.5",
+ "sgx_unwind",
 ]
 
 [[package]]
@@ -2988,6 +3060,14 @@ dependencies = [
  "rand_core 0.3.1",
  "rdrand",
  "sgx_types 1.1.3",
+]
+
+[[package]]
+name = "sgx_unwind"
+version = "1.1.6"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?branch=master#c3d82372dff81e5bafb07f71bc8ad532d06b504e"
+dependencies = [
+ "sgx_build_helper",
 ]
 
 [[package]]
@@ -3957,6 +4037,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cda74da7e1a664f795bb1f8a87ec406fb89a02522cf6e50620d016add6dbbf5c"
 
 [[package]]
+name = "tkp-hash"
+version = "1.0.0"
+dependencies = [
+ "parity-scale-codec",
+ "sgx_tstd",
+ "sha2 0.10.6",
+ "sp-core",
+]
+
+[[package]]
 name = "tkp-settings"
 version = "0.9.0"
 
@@ -4069,12 +4159,14 @@ dependencies = [
  "sgx_crypto_helper",
  "sgx_types 1.1.5",
  "sgx_urts",
+ "sha2 0.10.6",
  "sntpc",
  "sp-core",
  "sp-runtime",
  "substrate-api-client",
  "tee-primitives",
  "thiserror",
+ "tkp-hash",
  "tkp-settings",
  "trex-primitives",
  "trex-runtime",

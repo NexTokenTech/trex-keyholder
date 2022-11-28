@@ -25,7 +25,7 @@ use log::debug;
 use std::{
 	net::{SocketAddr, TcpStream, ToSocketAddrs, UdpSocket},
 	os::unix::io::IntoRawFd,
-	slice, str,
+	str,
 	time::Duration,
 };
 
