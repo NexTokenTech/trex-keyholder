@@ -147,7 +147,7 @@ fn main() {
 				aes_private_key: key_piece.clone().to_vec(),
 				timestamp: release_time.clone(),
 			};
-			let key_time_hash = key_time.hash_integer();
+			let key_time_hash = key_time.hash();
 			// construct key hash struct for shielding
 			let key_hash =
 				Sha256PrivateKeyHash { aes_private_key: key_piece.clone().to_vec(), hash: key_time_hash };

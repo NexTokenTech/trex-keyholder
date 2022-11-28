@@ -197,7 +197,7 @@ pub extern "C" fn insert_key_piece(
 	let key_hash =
 		match Sha256PrivateKeyHash::decode(&mut key_hash_encode.as_slice()).map_err(Error::Codec) {
 			Err(e) => {
-				error!("Failed to decode node metadata: {:?}", e);
+				error!("Failed to decode key_hash_encode: {:?}", e);
 				return sgx_status_t::SGX_ERROR_UNEXPECTED
 			},
 			Ok(m) => m,

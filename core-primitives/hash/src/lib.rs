@@ -48,12 +48,12 @@ pub struct Sha256PrivateKeyHash {
 /// Methods related to hashing and nonce updating in block headers.
 #[cfg(feature = "std")]
 pub trait Hash<I, E: Encode> {
-	fn hash_integer(&self) -> I;
+	fn hash(&self) -> I;
 }
 
 #[cfg(feature = "std")]
 impl Hash<Vec<u8>, U256> for Sha256PrivateKeyTime {
-	fn hash_integer(&self) -> Vec<u8> {
+	fn hash(&self) -> Vec<u8> {
 		// digest nonce by hashing with header data.
 		let data = &self.encode()[..];
 		let mut hasher = Sha256::new();
