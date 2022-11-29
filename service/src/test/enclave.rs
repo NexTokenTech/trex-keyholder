@@ -26,6 +26,7 @@ use log::info;
 use sgx_types::sgx_status_t;
 use sgx_urts::SgxEnclave;
 use trex_primitives::ShieldedKey;
+use crate::test::primitive::consts::{TEST_KEY_SLICE, TEST_NONCE_SLICE};
 use crate::utils::node_rpc::get_shielding_key;
 use super::primitive::consts::{TEST_CIPHER,TEST_KEY_PIECE};
 
@@ -81,16 +82,11 @@ fn aes_key_generate_decryption_works() {
 }
 
 #[test]
-fn aes_key_derive_decryption_works(){
-	let mut key_piece = TEST_KEY_PIECE;
+fn aes_key_derive_works(){
+	let mut key_piece = TEST_KEY_PIECE.to_vec();
 	let (key_slice, nonce_slice) = key_piece.split_at_mut(KEY_SIZE);
-	let ciphertext = TEST_CIPHER;
-	let cipher = Aes256Gcm::new_from_slice(&key_slice)
-		.expect("Random key slice does not match the size!");
-	let aes_nonce = Nonce::from_slice(nonce_slice);
-	let decrypted_msg_slice = cipher.decrypt(aes_nonce,ciphertext.as_ref()).unwrap();
-	let decrypted_msg = String::from_utf8(decrypted_msg_slice.to_vec()).unwrap_or("".to_string());
-	assert_eq!(decrypted_msg,"a test cipher text","Decrypted message does not match original!");
+	assert_eq!(key_slice,TEST_KEY_SLICE,"key slice does not match original!");
+	assert_eq!(nonce_slice,TEST_NONCE_SLICE,"nonce slice does not match original!");
 }
 
 #[test]
@@ -107,7 +103,7 @@ fn aes_key_release_time_hash_works(){
 	};
 	// get ras pubkey and enclave account id, will insert into ShieldedKey.
 	let (rsa_pubkey, tee_account_id) = get_shielding_key(&config).unwrap();
-	let mut key_piece = TEST_KEY_PIECE;
+	let mut key_piece = TEST_KEY_PIECE.to_vec();
 	// generate hash of Sha256PrivateKeyTime which contains key_piece and release_time
 	let release_time = release_time();
 	let key_time = Sha256PrivateKeyTime {
