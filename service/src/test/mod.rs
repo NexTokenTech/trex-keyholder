@@ -14,4 +14,6 @@
  limitations under the License.
 
 */
+#[cfg(test)]
 pub mod enclave;
+pub mod primitive;

@@ -111,4 +111,14 @@ extern "C" {
 		cipher_len: u32,
 		res: *mut u8,
 	) -> sgx_status_t;
+
+	/// test key piece timestamp
+	pub fn test_key_piece(
+		eid: sgx_enclave_id_t,
+		retval: *mut sgx_status_t,
+		key: *const u8,
+		key_len: u32,
+		release_time: u64,
+		res: *mut u8,
+	) -> sgx_status_t;
 }

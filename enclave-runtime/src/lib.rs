@@ -434,6 +434,62 @@ pub extern "C" fn test_decrypt(
 	sgx_status_t::SGX_SUCCESS
 }
 
+#[no_mangle]
+pub extern "C" fn test_key_piece(
+	key: *const u8,
+	key_len: u32,
+	release_time: u64,
+	res: *mut u8,
+) -> sgx_status_t {
+	// Decrypt key piece inside the enclave.
+	let key_piece = unsafe { slice::from_raw_parts(key, key_len as usize) };
+	let key_hash_encode = get_decrypt_cipher_text(key_piece.as_ptr() as *const u8, key_piece.len());
+	// Decode key_hash from key_hash_encode
+	let key_hash =
+		match Sha256PrivateKeyHash::decode(&mut key_hash_encode.as_slice()).map_err(Error::Codec) {
+			Err(e) => {
+				error!("Failed to decode key_hash_encode: {:?}", e);
+				unsafe {
+					*res = 0;
+				}
+				return sgx_status_t::SGX_ERROR_UNEXPECTED
+			},
+			Ok(m) => m,
+		};
+	// Construct key time struct and encode
+	let key_time = Sha256PrivateKeyTime {
+		aes_private_key: key_hash.aes_private_key.clone(),
+		timestamp: release_time,
+	};
+	let key_time_encode = key_time.encode();
+
+	// Convert the key_time_encode to a slice and calculate its SHA256
+	let result = rsgx_sha256_slice(&key_time_encode.as_slice());
+
+	// Determine whether the hash value of the key and time matches the passed hash value
+	match result {
+		Ok(output_hash) =>
+			if output_hash.to_vec() == key_hash.hash {
+				unsafe {
+					*res = 1;
+				}
+				info!("Hash values are matched");
+			} else {
+				unsafe {
+					*res = 0;
+				}
+				info!("Hash values do not match");
+			},
+		Err(_x) => {
+			unsafe {
+				*res = 0;
+			}
+			info!("Hash values do not match");
+		},
+	}
+	sgx_status_t::SGX_SUCCESS
+}
+
 fn get_decrypt_cipher_text(cipher_text: *const u8, cipher_len: usize) -> Vec<u8> {
 	let ciphertext_bin = unsafe { slice::from_raw_parts(cipher_text, cipher_len) };
 	let mut keyvec: Vec<u8> = Vec::new();
