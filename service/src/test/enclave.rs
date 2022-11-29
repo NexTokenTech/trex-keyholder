@@ -65,7 +65,7 @@ fn shielding_key_decryption() {
 }
 
 #[test]
-fn aes_key_generate_encryption_works() {
+fn aes_key_generate_decryption_works() {
 	// get aes key
 	let mut key_slice = [0u8; KEY_SIZE];
 	let nonce_slice = AES_NONCE;
@@ -75,7 +75,9 @@ fn aes_key_generate_encryption_works() {
 	let aes_nonce = Nonce::from_slice(nonce_slice);
 	// create cipher text
 	let ciphertext = cipher.encrypt(aes_nonce, b"a test cipher text".as_ref()).unwrap();
-	assert_eq!(ciphertext, TEST_CIPHER, "Cipher text does not match original!");
+	let decrypted_msg_slice = cipher.decrypt(aes_nonce,ciphertext.as_ref()).unwrap();
+	let decrypted_msg = String::from_utf8(decrypted_msg_slice.to_vec()).unwrap_or("".to_string());
+	assert_eq!(decrypted_msg, "a test cipher text", "Cipher text does not match original!");
 }
 
 #[test]
