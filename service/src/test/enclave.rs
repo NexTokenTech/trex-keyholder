@@ -14,9 +14,15 @@
  limitations under the License.
 
 */
-use crate::enclave::{
-	api::{enclave_init, get_shielding_pubkey},
-	ffi,
+use crate::{
+	enclave::{
+		api::{enclave_init, get_shielding_pubkey},
+		ffi,
+	},
+	test::primitive::consts::{
+		TEST_CIPHER, TEST_CONFIG_PATH, TEST_KEY_PIECE, TEST_KEY_SLICE, TEST_NONCE_SLICE,
+	},
+	utils::node_rpc::get_shielding_key,
 };
 use aes_gcm::{
 	aead::{rand_core::RngCore, Aead, KeyInit, OsRng},
@@ -25,10 +31,9 @@ use aes_gcm::{
 use log::info;
 use sgx_types::sgx_status_t;
 use sgx_urts::SgxEnclave;
+use tkp_settings::keyholder::AES_KEY_MAX_SIZE;
 use trex_primitives::ShieldedKey;
-use crate::test::primitive::consts::{TEST_KEY_SLICE, TEST_NONCE_SLICE};
-use crate::utils::node_rpc::get_shielding_key;
-use super::primitive::consts::{TEST_CIPHER,TEST_KEY_PIECE};
+use crate::enclave::api::insert_key_piece;
 
 #[test]
 fn shielding_key_decryption() {
@@ -76,21 +81,21 @@ fn aes_key_generate_decryption_works() {
 	let aes_nonce = Nonce::from_slice(nonce_slice);
 	// create cipher text
 	let ciphertext = cipher.encrypt(aes_nonce, b"a test cipher text".as_ref()).unwrap();
-	let decrypted_msg_slice = cipher.decrypt(aes_nonce,ciphertext.as_ref()).unwrap();
+	let decrypted_msg_slice = cipher.decrypt(aes_nonce, ciphertext.as_ref()).unwrap();
 	let decrypted_msg = String::from_utf8(decrypted_msg_slice.to_vec()).unwrap_or("".to_string());
 	assert_eq!(decrypted_msg, "a test cipher text", "Cipher text does not match original!");
 }
 
 #[test]
-fn aes_key_derive_works(){
+fn aes_key_derive_works() {
 	let mut key_piece = TEST_KEY_PIECE.to_vec();
 	let (key_slice, nonce_slice) = key_piece.split_at_mut(KEY_SIZE);
-	assert_eq!(key_slice,TEST_KEY_SLICE,"key slice does not match original!");
-	assert_eq!(nonce_slice,TEST_NONCE_SLICE,"nonce slice does not match original!");
+	assert_eq!(key_slice, TEST_KEY_SLICE, "key slice does not match original!");
+	assert_eq!(nonce_slice, TEST_NONCE_SLICE, "nonce slice does not match original!");
 }
 
 #[test]
-fn aes_key_release_time_hash_works(){
+fn aes_key_release_time_hash_works() {
 	let enclave = match enclave_init() {
 		Ok(r) => {
 			info!("[+] Init Enclave Successful {}!", r.geteid());
@@ -101,11 +106,52 @@ fn aes_key_release_time_hash_works(){
 			return
 		},
 	};
+	let config = ApiConfig::from_yaml(TEST_CONFIG_PATH);
+	let release_time = release_time();
+	let key = generate_shielding_key(&config,release_time.clone());
+	let mut retval = sgx_status_t::SGX_SUCCESS;
+	let mut res: u8 = 1;
+	unsafe {
+		ffi::test_key_piece(
+			enclave.geteid(),
+			&mut retval,
+			key.as_ptr(),
+			key.len() as u32,
+			release_time,
+			&mut res,
+		);
+	};
+	assert_eq!(res, 1, "Decrypted key time hash does not match original!");
+	assert_eq!(retval, sgx_status_t::SGX_SUCCESS, "SGX ECall is not successful!")
+}
+
+#[test]
+pub fn enclave_heap_over_head_works(){
+	let mut counter = 0;
+	let config = ApiConfig::from_yaml(TEST_CONFIG_PATH);
+	loop {
+		let release_time = release_time() + 86400000;
+		let key = generate_shielding_key(&config,release_time);
+		insert_key_piece(
+			&enclave.clone(),
+			key,
+			release_time,
+			1u32,
+			1u32,
+		)
+			.expect("Cannot insert shielded key!");
+		counter += 1;
+		if counter == 10000 {
+			return;
+		}
+	}
+}
+
+fn generate_shielding_key(config: &ApiConfig, release_time: u64) -> ShieldedKey {
 	// get ras pubkey and enclave account id, will insert into ShieldedKey.
 	let (rsa_pubkey, tee_account_id) = get_shielding_key(&config).unwrap();
 	let mut key_piece = TEST_KEY_PIECE.to_vec();
 	// generate hash of Sha256PrivateKeyTime which contains key_piece and release_time
-	let release_time = release_time();
 	let key_time = Sha256PrivateKeyTime {
 		aes_private_key: key_piece.clone().to_vec(),
 		timestamp: release_time.clone(),
@@ -122,18 +168,5 @@ fn aes_key_release_time_hash_works(){
 		.expect("Cannot shield key pieces!");
 	// construct key_pieces
 	let key: ShieldedKey = cipher_private_key;
-	let mut retval = sgx_status_t::SGX_SUCCESS;
-	let mut res: u8 = 1;
-	unsafe {
-		ffi::test_key_piece(
-			enclave.geteid(),
-			&mut retval,
-			key.as_ptr(),
-			key.len() as u32,
-			release_time,
-			&mut res,
-		);
-	};
-	assert_eq!(res, 1, "Decrypted key time hash does not match original!");
-	assert_eq!(retval, sgx_status_t::SGX_SUCCESS, "SGX ECall is not successful!")
+	key
 }

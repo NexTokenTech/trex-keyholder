@@ -77,4 +77,6 @@ pub mod keyholder {
 	// Should be set to a value that ensures that the enclave can register itself
 	// and that the worker can start.
 	pub const REGISTERING_FEE_FACTOR_FOR_INIT_FUNDS: u128 = 10;
+	// max size of min heap
+	pub const MIN_HEAP_MAX_SIZE:usize = 10000;
 }

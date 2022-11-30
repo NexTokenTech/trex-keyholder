@@ -81,7 +81,7 @@ mod utils;
 use crate::error::{Error, Result};
 use sp_core::{crypto::Pair, Decode, Encode};
 use tkp_nonce_cache::{MutateNonce, Nonce, GLOBAL_NONCE_CACHE};
-use tkp_settings::files::*;
+use tkp_settings::{files::*, keyholder::MIN_HEAP_MAX_SIZE};
 use tkp_sgx_crypto::{ed25519, Ed25519Seal};
 use tkp_sgx_io::StaticSealedIO;
 use utils::node_metadata::NodeMetadata;
@@ -227,16 +227,21 @@ pub extern "C" fn insert_key_piece(
 		},
 	}
 	if hash_do_match {
-		let decrypted_key = key_hash.aes_private_key;
-		let ext_item = KeyPiece {
-			release_time,
-			from_block: current_block,
-			key_piece: decrypted_key,
-			ext_index,
-		};
 		info!("Inserting a new key piece to the enclave queue!");
 		let mut min_heap = MIN_BINARY_HEAP.lock().unwrap();
-		min_heap.push(Reverse(ext_item));
+		if min_heap.len() > MIN_HEAP_MAX_SIZE {
+			// TODO: Do some processing if the max size is exceeded
+		} else {
+			let decrypted_key = key_hash.aes_private_key;
+			let ext_item = KeyPiece {
+				release_time,
+				from_block: current_block,
+				key_piece: decrypted_key,
+				ext_index,
+			};
+			min_heap.push(Reverse(ext_item));
+			println!("min heap length:{:?}", min_heap.len());
+		}
 	}
 	sgx_status_t::SGX_SUCCESS
 }
