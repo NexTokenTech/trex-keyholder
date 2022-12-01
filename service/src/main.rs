@@ -53,7 +53,11 @@ use enclave::api::*;
 use utils::{
 	node_metadata::NodeMetadata,
 	node_rpc::{get_api, get_genesis_hash, get_nonce},
+	key_piece::TmpKeyPiece
 };
+
+use std::cmp::{min, Ordering, Reverse};
+use std::collections::binary_heap::BinaryHeap;
 
 /// Arguments for the Key-holding services.
 #[derive(Parser, Debug)]
@@ -120,6 +124,8 @@ fn main() {
 		let (events_in, events_out) = channel();
 		api.subscribe_events(events_in).unwrap();
 		let timeout = Duration::from_millis(10);
+		// Data that cannot be temporarily stored into the heap
+		let mut key_piece_cache:BinaryHeap<Reverse<TmpKeyPiece>> = BinaryHeap::new();
 		loop {
 			if let Ok(msg) = events_out.recv_timeout(timeout) {
 				match parse_events(msg.clone()) {
@@ -147,14 +153,13 @@ fn main() {
 														ApplyExtrinsic(ext_index) => {
 															debug!("Decoded Ext Index: {:?}", ext_index);
 															info!("Expect Release Time {}", trex_data.release_time);
-															insert_key_piece(
-																local_enclave.borrow(),
-																shielded_key,
-																trex_data.release_time,
-																trex_data.current_block,
-																ext_index,
-															)
-															.expect("Cannot insert shielded key!");
+															let tmp_key_piece = TmpKeyPiece{
+																release_time:trex_data.release_time,
+																from_block:trex_data.current_block,
+																key_piece:shielded_key.clone(),
+																ext_index
+															};
+															handle_key_piece(&local_enclave.clone(),tmp_key_piece, &mut key_piece_cache);
 														},
 														_ => {},
 													}
@@ -198,6 +203,28 @@ fn main() {
 		handler.join().expect("The thread being joined has panicked");
 	}
 	enclave.destroy();
+}
+
+fn handle_key_piece(enclave:&SgxEnclave,tmp_key_piece:TmpKeyPiece,key_piece_cache:&mut BinaryHeap<Reverse<TmpKeyPiece>>){
+	key_piece_cache.push(Reverse(tmp_key_piece));
+	// Get the remaining heap locations
+	let heap_left_count = get_heap_left_count(&enclave).unwrap_or(0);
+	if heap_left_count > 0 && key_piece_cache.len() > 0{
+		let insert_count = min(key_piece_cache.len(),heap_left_count);
+		for i in 0..insert_count {
+			if let Some(Reverse(item)) = key_piece_cache.peek() {
+				insert_key_piece(
+					&enclave.clone(),
+					item.clone().key_piece,
+					item.clone().release_time,
+					item.clone().from_block,
+					item.clone().ext_index,
+				)
+					.expect("Cannot insert shielded key!");
+				key_piece_cache.pop();
+			}
+		}
+	}
 }
 
 fn parse_events(event: String) -> Result<Events, String> {

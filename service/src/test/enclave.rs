@@ -20,9 +20,10 @@ use crate::{
 		ffi,
 	},
 	test::primitive::consts::{
-		TEST_CIPHER, TEST_CONFIG_PATH, TEST_KEY_PIECE, TEST_KEY_SLICE, TEST_NONCE_SLICE,
+		TEST_CIPHER, TEST_CONFIG_PATH, TEST_KEY_PIECE, TEST_KEY_SLICE, TEST_NONCE_SLICE,ONE_DAY
 	},
 	utils::node_rpc::get_shielding_key,
+	utils::key_piece::TmpKeyPiece
 };
 use aes_gcm::{
 	aead::{rand_core::RngCore, Aead, KeyInit, OsRng},
@@ -31,9 +32,13 @@ use aes_gcm::{
 use log::info;
 use sgx_types::sgx_status_t;
 use sgx_urts::SgxEnclave;
-use tkp_settings::keyholder::AES_KEY_MAX_SIZE;
+use tkp_settings::keyholder::{AES_KEY_MAX_SIZE,MIN_HEAP_MAX_SIZE};
 use trex_primitives::ShieldedKey;
-use crate::enclave::api::insert_key_piece;
+use crate::enclave::api::{clear_heap, get_heap_left_count, insert_key_piece};
+use std::cmp::{min, Ordering, Reverse};
+use std::collections::binary_heap::BinaryHeap;
+
+const HEAP_CLEAN_INTERVAL: u32 = 12;
 
 #[test]
 fn shielding_key_decryption() {
@@ -129,19 +134,44 @@ fn aes_key_release_time_hash_works() {
 pub fn enclave_heap_over_head_works(){
 	let mut counter = 0;
 	let config = ApiConfig::from_yaml(TEST_CONFIG_PATH);
+	let mut key_piece_cache:BinaryHeap<Reverse<TmpKeyPiece>> = BinaryHeap::new();
 	loop {
-		let release_time = release_time() + 86400000;
+		let release_time = release_time() + ONE_DAY;
 		let key = generate_shielding_key(&config,release_time);
-		insert_key_piece(
-			&enclave.clone(),
-			key,
+		let current_block = 1u32;
+		let ext_index = 1u32;
+		let key_piece = TmpKeyPiece{
 			release_time,
-			1u32,
-			1u32,
-		)
-			.expect("Cannot insert shielded key!");
+			from_block:current_block,
+			key_piece:key,
+			ext_index
+		};
+		key_piece_cache.push(Reverse(key_piece));
+		// Get the remaining heap locations
+		let heap_left_count = get_heap_left_count(&enclave).unwrap_or(0);
+		println!("~~~~~~~~~~~~~~~~~~~~~left:{:?}",heap_left_count);
+		if heap_left_count > 0 && key_piece_cache.len() > 0{
+			let insert_count = min(key_piece_cache.len(),heap_left_count);
+			for i in 0..insert_count {
+				if let Some(Reverse(item)) = key_piece_cache.peek() {
+					insert_key_piece(
+						&enclave.clone(),
+						item.clone().key_piece,
+						item.clone().release_time,
+						item.clone().from_block,
+						item.clone().ext_index,
+					)
+						.expect("Cannot insert shielded key!");
+					key_piece_cache.pop();
+				}
+			}
+		}
+		println!("key_piece_cache length{:?}",key_piece_cache.len());
 		counter += 1;
-		if counter == 10000 {
+		if counter % HEAP_CLEAN_INTERVAL == 0 {
+			clear_heap(&enclave.clone()).expect("clear heap error");
+		}
+		if counter == MIN_HEAP_MAX_SIZE {
 			return;
 		}
 	}

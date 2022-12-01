@@ -183,6 +183,25 @@ pub unsafe extern "C" fn get_ecc_signing_pubkey(pubkey: *mut u8, pubkey_size: u3
 }
 
 #[no_mangle]
+pub extern "C" fn get_heap_left_count(
+	heap_left_count: *mut usize
+) -> sgx_status_t {
+	let min_heap = MIN_BINARY_HEAP.lock().unwrap();
+	let left_count = MIN_HEAP_MAX_SIZE - min_heap.len();
+	unsafe {
+		*heap_left_count = left_count;
+	}
+	sgx_status_t::SGX_SUCCESS
+}
+
+#[no_mangle]
+pub extern  "C" fn clear_heap() -> sgx_status_t{
+	let mut min_heap = MIN_BINARY_HEAP.lock().unwrap();
+	min_heap.clear();
+	sgx_status_t::SGX_SUCCESS
+}
+
+#[no_mangle]
 pub extern "C" fn insert_key_piece(
 	key: *const u8,
 	key_len: u32,
