@@ -159,7 +159,7 @@ fn main() {
 																key_piece:shielded_key.clone(),
 																ext_index
 															};
-															handle_key_piece(&local_enclave.clone(),tmp_key_piece, &mut key_piece_cache);
+															handle_key_piece(local_enclave.borrow(),tmp_key_piece, &mut key_piece_cache);
 														},
 														_ => {},
 													}
@@ -211,10 +211,10 @@ fn handle_key_piece(enclave:&SgxEnclave,tmp_key_piece:TmpKeyPiece,key_piece_cach
 	let heap_left_count = get_heap_left_count(&enclave).unwrap_or(0);
 	if heap_left_count > 0 && key_piece_cache.len() > 0{
 		let insert_count = min(key_piece_cache.len(),heap_left_count);
-		for i in 0..insert_count {
+		for _i in 0..insert_count {
 			if let Some(Reverse(item)) = key_piece_cache.peek() {
 				insert_key_piece(
-					&enclave.clone(),
+					&enclave,
 					item.clone().key_piece,
 					item.clone().release_time,
 					item.clone().from_block,
