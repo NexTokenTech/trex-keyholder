@@ -14,6 +14,8 @@
  limitations under the License.
 
 */
+/// Enclave test case
 #[cfg(test)]
 pub mod enclave;
+/// Constants for test cases, etc
 pub mod primitive;

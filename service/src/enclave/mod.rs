@@ -14,6 +14,9 @@
  limitations under the License.
 
 */
+/// Call enclave api for the keyholder
 pub mod api;
+/// A specialized Error type
 pub mod error;
+/// Interface defined for enclave call
 pub mod ffi;

@@ -22,6 +22,7 @@ use substrate_api_client::{Metadata, MetadataError};
 #[allow(dead_code)]
 pub type MetaResult<T> = Result<T, Error>;
 // TODO: consolidate with error type in enclave-runtime.
+/// A specialized Error type for NodeMetadata
 #[derive(Debug, PartialEq, Eq)]
 pub enum Error {
 	/// Metadata has not been set
@@ -30,15 +31,21 @@ pub enum Error {
 	NodeMetadata(MetadataError),
 }
 
+/// Used to store some fields required by rpc
 #[derive(Default, Encode, Decode, Debug, Clone)]
 pub struct NodeMetadata {
+	/// Metadata
 	node_metadata: Option<Metadata>,
+	/// Runtime spec version
 	runtime_spec_version: u32,
+	/// Runtime transaction version
 	runtime_transaction_version: u32,
 }
 
 // TODO: consolidate with struct type in enclave-runtime.
+/// Implementation of NodeMetadata
 impl NodeMetadata {
+	/// The new method of NodeMetadata
 	pub fn new(
 		node_metadata: Metadata,
 		runtime_spec_version: u32,

@@ -19,6 +19,7 @@
 
 #![no_std]
 
+/// File Settings concerning the keyholder
 pub mod files {
 	// used by worker
 	pub static ENCLAVE_TOKEN: &str = "enclave.token";
@@ -53,29 +54,29 @@ pub mod files {
 	pub const CERTEXPIRYDAYS: i64 = 90i64;
 }
 
-/// Settings concerning the worker
+/// Settings concerning the keyholder
 pub mod keyholder {
-	// the maximum size of RA extrinsic that the enclave will ever generate.
+	/// the maximum size of RA extrinsic that the enclave will ever generate.
 	pub const RA_EXT_MAX_SIZE: usize = 4196;
-	// the max size of expired key ext that the enclave generates.
+	/// the max size of expired key ext that the enclave generates.
 	pub const KEY_EXT_MAX_SIZE: usize = 256;
-	// 256bit AES key plus 96bit nonce
+	/// 256bit AES key plus 96bit nonce
 	pub const AES_KEY_MAX_SIZE: usize = 32 + 12;
-	// the maximum size of the header
+	/// the maximum size of the header
 	pub const HEADER_MAX_SIZE: usize = 200;
-	// maximum size of shielding key
-	// (this size is significantly inflated by using JSON serialization)
+	/// maximum size of shielding key
+	/// (this size is significantly inflated by using JSON serialization)
 	pub const SHIELDING_KEY_SIZE: usize = 8192;
-	// maximum size of signing key
+	/// maximum size of signing key
 	pub const SIGNING_KEY_SIZE: usize = 32;
-	// size of the MR enclave
+	/// size of the MR enclave
 	pub const MR_ENCLAVE_SIZE: usize = 32;
-	// Factors to tune the initial amount of enclave funding:
-	// Should be set to a value that ensures that the enclave can register itself
-	// and the worker can run for a certain time. Only for development.
+	/// Factors to tune the initial amount of enclave funding:
+	/// Should be set to a value that ensures that the enclave can register itself
+	/// and the worker can run for a certain time. Only for development.
 	pub const EXISTENTIAL_DEPOSIT_FACTOR_FOR_INIT_FUNDS: u128 = 200_000;
-	// Should be set to a value that ensures that the enclave can register itself
-	// and that the worker can start.
+	/// Should be set to a value that ensures that the enclave can register itself
+	/// and that the worker can start.
 	pub const REGISTERING_FEE_FACTOR_FOR_INIT_FUNDS: u128 = 10;
 	// max size of min heap
 	pub const MIN_HEAP_MAX_SIZE:usize = 8000;

@@ -14,6 +14,8 @@
  limitations under the License.
 
 */
+/// Struct NodeMetadata and Impl.
 pub mod node_metadata;
+/// Node Rpc APIs
 pub mod node_rpc;
 pub mod key_piece;

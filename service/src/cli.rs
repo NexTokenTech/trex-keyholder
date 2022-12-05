@@ -14,9 +14,13 @@
  limitations under the License.
 
 */
+/// Config for cli
 mod config;
+/// Enclave api
 mod enclave;
+/// Ocall implemetation
 mod ocall;
+/// Some utils for service
 mod utils;
 
 use crate::enclave::api::get_shielding_pubkey;
@@ -57,23 +61,31 @@ use utils::{
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
+	/// Action for Subcommand
 	#[command(subcommand)]
 	action: Action,
 	/// Path of config YAML file.
 	#[arg(short, long, default_value_t=("config.yml".to_string()))]
 	config: String,
+	/// Path of seed YAML file
 	#[arg(short, long, default_value_t=("seed.yml".to_string()))]
 	seed: String,
 }
 
+/// Enum for Subcommand
 #[derive(clap::Subcommand, Debug)]
 enum Action {
+	/// Test to send a uxt containing ciphertext and encrypted private key to the chain
 	Test,
+	/// Get the shielding pubkey generated in enclave
 	ShieldingPubKey,
+	/// Get the pubkey for signature in enclave
 	SigningPubKey,
+	/// Obtain the balance in the account
 	GetFreeBalance,
 }
 
+/// Seed of signature keypair for testing
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(transparent)]
 struct Seed {
@@ -81,12 +93,14 @@ struct Seed {
 	hex: Vec<u8>,
 }
 
-/// one minute in milliseconds.
+/// One minute in milliseconds.
 const ONE_MINUTE: u64 = 60 * 1000;
+/// Size of aes key
 const KEY_SIZE: usize = 32;
-// This nonce must be 12 bytes long.
+/// AES NONCE: This nonce must be 12 bytes long.
 const AES_NONCE: &[u8; 12] = b"unique nonce";
 
+/// Main function executed by cli
 fn main() {
 	// Setup logging
 	env_logger::init();
@@ -208,6 +222,7 @@ fn main() {
 	}
 }
 
+/// Release time: take the current time and push it back 60s
 fn release_time() -> u64 {
 	let now = SystemTime::now();
 	let mut now_time: u64 = 0;
@@ -227,6 +242,7 @@ fn release_time() -> u64 {
 }
 
 // TODO: consolidate with the same method in enclave-runtime.
+/// Convert slice type to hash type
 pub fn hash_from_slice(hash_slize: &[u8]) -> sp_core::H256 {
 	let mut g = [0; 32];
 	g.copy_from_slice(hash_slize);

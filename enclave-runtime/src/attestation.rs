@@ -49,17 +49,44 @@ use tkp_settings::files::{RA_API_KEY_FILE, RA_SPID_FILE};
 use tkp_sgx_crypto::Ed25519Seal;
 use tkp_sgx_io::StaticSealedIO;
 
+/// intel attestation service host name
 pub const DEV_HOSTNAME: &'static str = "api.trustedservices.intel.com";
+/// sigrl suffix
 pub const SIGRL_SUFFIX: &'static str = "/sgx/dev/attestation/v4/sigrl/";
+/// report suffix
 pub const REPORT_SUFFIX: &'static str = "/sgx/dev/attestation/v4/report";
 
+/// sp_core:H256 type alias
 pub type Hash = sp_core::H256;
+/// convert slice to hash type
 pub fn hash_from_slice(hash_slize: &[u8]) -> Hash {
 	let mut g = [0; 32];
 	g.copy_from_slice(hash_slize);
 	Hash::from(&mut g)
 }
 
+/// generate remote attestation report and construct an unchecked extrinsic which will send by pallet-teerex
+/// # Example
+/// ```
+/// let mut retval = sgx_status_t::SGX_SUCCESS;
+///
+///	let unchecked_extrinsic_size = RA_EXT_MAX_SIZE;
+///	let mut unchecked_extrinsic: Vec<u8> = vec![0u8; unchecked_extrinsic_size as usize];
+///
+///	let result = unsafe {
+///		ffi::perform_ra(
+///			enclave.geteid(),
+///			&mut retval,
+///			genesis_hash.as_ptr(),
+///			genesis_hash.len() as u32,
+///			&nonce,
+///			w_url.as_ptr(),
+///			w_url.len() as u32,
+///			unchecked_extrinsic.as_mut_ptr(),
+///			unchecked_extrinsic.len() as u32,
+///		)
+///	};
+/// ```
 #[no_mangle]
 pub unsafe extern "C" fn perform_ra(
 	genesis_hash: *const u8,
@@ -249,6 +276,7 @@ fn parse_response_attn_report(resp: &[u8]) -> (String, String, String) {
 	(attn_report, sig, sig_cert)
 }
 
+/// parse sigrl response from intel
 fn parse_response_sigrl(resp: &[u8]) -> Vec<u8> {
 	debug!("parse_response_sigrl");
 	let mut headers = [httparse::EMPTY_HEADER; 16];
@@ -296,6 +324,7 @@ fn parse_response_sigrl(resp: &[u8]) -> Vec<u8> {
 	Vec::new()
 }
 
+/// add server trust anchors
 pub fn make_ias_client_config() -> rustls::ClientConfig {
 	let mut config = rustls::ClientConfig::new();
 
@@ -304,6 +333,7 @@ pub fn make_ias_client_config() -> rustls::ClientConfig {
 	config
 }
 
+/// get sigrl from intel
 pub fn get_sigrl_from_intel(fd: c_int, gid: u32) -> Vec<u8> {
 	debug!("get_sigrl_from_intel fd = {:?}", fd);
 	let config = make_ias_client_config();
@@ -344,6 +374,7 @@ pub fn get_sigrl_from_intel(fd: c_int, gid: u32) -> Vec<u8> {
 }
 
 // TODO: support pse
+/// get attestation report from intel
 pub fn get_report_from_intel(fd: c_int, quote: Vec<u8>) -> (String, String, String) {
 	debug!("get_report_from_intel fd = {:?}", fd);
 	let config = make_ias_client_config();
@@ -387,6 +418,7 @@ fn as_u32_le(array: &[u8; 4]) -> u32 {
 		+ ((array[3] as u32) << 24)
 }
 
+/// create attestation report flow
 #[allow(const_err)]
 pub fn create_attestation_report(
 	pub_k: &[u8; 32],

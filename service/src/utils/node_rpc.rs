@@ -26,12 +26,17 @@ use substrate_api_client::{
 };
 use tee_primitives::Enclave;
 
+/// Const str "Tee"
 pub const TEE: &str = "Tee";
+/// Const tr "Trex"
 pub const TREX: &str = "Trex";
+/// First enclave index,default: 1.
 pub const FIRST_ENCLAVE_INDEX: u64 = 1;
 
+/// Node Rpc Api alias
 pub type RpcApi<C> = Api<sr25519::Pair, C, AssetTipExtrinsicParams>;
 
+/// Get the node rpc api instance
 pub fn get_api(config: &Config) -> Result<RpcApi<WsRpcClient>, ApiClientError> {
 	let url = config.node_url();
 	let client = WsRpcClient::new(&url);
