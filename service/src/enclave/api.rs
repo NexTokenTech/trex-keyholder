@@ -215,6 +215,40 @@ pub fn enclave_account(enclave: &SgxEnclave) -> Result<AccountId32, Error> {
 	Ok(tee_account_id)
 }
 
+/// Get the remaining heap locations
+pub fn get_heap_free_count(
+	enclave: &SgxEnclave
+) -> Result<usize, Error>{
+	let mut retval = sgx_status_t::SGX_SUCCESS;
+	let mut heap_free_count:usize = 0;
+	let result = unsafe {
+		ffi::get_heap_free_count(
+			enclave.geteid(),
+			&mut retval,
+			&mut heap_free_count
+		)
+	};
+	ensure!(result == sgx_status_t::SGX_SUCCESS, Error::Sgx(result));
+	ensure!(retval == sgx_status_t::SGX_SUCCESS, Error::Sgx(retval));
+	Ok(heap_free_count)
+}
+
+/// clear heap for uni-test using.
+pub fn clear_heap(
+	enclave: &SgxEnclave
+) -> Result<(), Error>{
+	let mut retval = sgx_status_t::SGX_SUCCESS;
+	let result = unsafe {
+		ffi::clear_heap(
+			enclave.geteid(),
+			&mut retval
+		)
+	};
+	ensure!(result == sgx_status_t::SGX_SUCCESS, Error::Sgx(result));
+	ensure!(retval == sgx_status_t::SGX_SUCCESS, Error::Sgx(retval));
+	Ok(())
+}
+
 /// Insert private key piece according to the release time
 pub fn insert_key_piece(
 	enclave: &SgxEnclave,
@@ -240,6 +274,7 @@ pub fn insert_key_piece(
 	Ok(())
 }
 
+/// check if the key piece is expired and extract it from the enclave if so.
 pub fn get_expired_key(enclave: &SgxEnclave) -> Option<(Vec<u8>, u32, u32)> {
 	let mut key: Vec<u8> = vec![0u8; AES_KEY_MAX_SIZE];
 	let mut from_block: u32 = 0;
@@ -266,6 +301,7 @@ pub fn get_expired_key(enclave: &SgxEnclave) -> Option<(Vec<u8>, u32, u32)> {
 	}
 }
 
+/// generate remote attestation report and construct an unchecked extrinsic which will send by pallet-teerex
 pub fn perform_expire_key(
 	enclave: &SgxEnclave,
 	genesis_hash: Vec<u8>,

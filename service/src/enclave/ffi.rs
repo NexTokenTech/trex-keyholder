@@ -121,4 +121,17 @@ extern "C" {
 		release_time: u64,
 		res: *mut u8,
 	) -> sgx_status_t;
+
+	/// Get the remaining heap locations
+	pub fn get_heap_free_count(
+		eid: sgx_enclave_id_t,
+		retval: *mut sgx_status_t,
+		heap_free_count: *mut usize,
+	) -> sgx_status_t;
+
+	/// Clear heap for uni-test using
+	pub fn clear_heap(
+		eid: sgx_enclave_id_t,
+		retval: *mut sgx_status_t
+	) -> sgx_status_t;
 }
