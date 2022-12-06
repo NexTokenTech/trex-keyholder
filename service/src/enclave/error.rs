@@ -17,10 +17,13 @@
 use codec::Error as CodecError;
 use sgx_types::sgx_status_t;
 
+/// A specialized Error type
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+	/// Codec error
 	#[error("{0}")]
 	Codec(#[from] CodecError),
+	/// Sgx call error
 	#[error("Enclave Error: {0}")]
 	Sgx(sgx_status_t),
 }

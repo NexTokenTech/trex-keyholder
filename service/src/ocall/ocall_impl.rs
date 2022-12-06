@@ -32,14 +32,17 @@ use std::{
 use sntpc::{self, Error, NtpContext, NtpTimestampGenerator, NtpUdpSocket};
 
 // TODO: move this to config
+/// Address and port of ntp server
 #[allow(dead_code)]
 const POOL_NTP_ADDR: &str = "pool.ntp.org:123";
 
+/// Used to initialize the ntp context
 #[derive(Copy, Clone, Default)]
 struct StdTimestampGen {
 	duration: Duration,
 }
 
+/// Implement NtpTimestampGenerator's trait for StdTimestampGen
 impl NtpTimestampGenerator for StdTimestampGen {
 	fn init(&mut self) {
 		self.duration = std::time::SystemTime::now()
@@ -56,9 +59,11 @@ impl NtpTimestampGenerator for StdTimestampGen {
 	}
 }
 
+/// udp socket wrapper
 #[derive(Debug)]
 struct UdpSocketWrapper(UdpSocket);
 
+/// Implement NtpUdpSocket's trait for UdpSocketWrapper
 impl NtpUdpSocket for UdpSocketWrapper {
 	fn send_to<T: ToSocketAddrs>(&self, buf: &[u8], addr: T) -> Result<usize, Error> {
 		match self.0.send_to(buf, addr) {
@@ -75,6 +80,7 @@ impl NtpUdpSocket for UdpSocketWrapper {
 	}
 }
 
+/// Obtain ntp time
 #[no_mangle]
 pub unsafe extern "C" fn ocall_time_ntp(time: *mut u64) -> sgx_status_t {
 	let socket = UdpSocket::bind("0.0.0.0:0").expect("Unable to crate UDP socket");
@@ -98,6 +104,7 @@ pub unsafe extern "C" fn ocall_time_ntp(time: *mut u64) -> sgx_status_t {
 	sgx_status_t::SGX_SUCCESS
 }
 
+/// Ocall: init quote
 #[no_mangle]
 pub extern "C" fn ocall_sgx_init_quote(
 	ret_ti: *mut sgx_target_info_t,
@@ -107,6 +114,7 @@ pub extern "C" fn ocall_sgx_init_quote(
 	unsafe { sgx_init_quote(ret_ti, ret_gid) }
 }
 
+/// Construct socket address
 pub fn lookup_ipv4(host: &str, port: u16) -> SocketAddr {
 	let addrs = (host, port).to_socket_addrs().unwrap();
 	for addr in addrs {
@@ -118,6 +126,7 @@ pub fn lookup_ipv4(host: &str, port: u16) -> SocketAddr {
 	unreachable!("Cannot lookup address");
 }
 
+/// Ocall: get ias socket
 #[no_mangle]
 pub extern "C" fn ocall_get_ias_socket(ret_fd: *mut c_int) -> sgx_status_t {
 	let port = 443;
@@ -132,6 +141,7 @@ pub extern "C" fn ocall_get_ias_socket(ret_fd: *mut c_int) -> sgx_status_t {
 	sgx_status_t::SGX_SUCCESS
 }
 
+/// Ocall: get quote
 #[no_mangle]
 pub extern "C" fn ocall_get_quote(
 	p_sigrl: *const u8,
@@ -184,6 +194,7 @@ pub extern "C" fn ocall_get_quote(
 	ret
 }
 
+/// Ocall: get update info
 #[no_mangle]
 pub extern "C" fn ocall_get_update_info(
 	platform_blob: *const sgx_platform_info_t,

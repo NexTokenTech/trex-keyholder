@@ -71,8 +71,10 @@ use sgx_types::{SGX_RSA3072_KEY_SIZE, SGX_RSA3072_PUB_EXP_SIZE};
 use log::*;
 use std::str;
 
-mod attestation;
+/// Related implementation methods of remote attestation in enclave
+pub mod attestation;
 mod cert;
+/// A specialized Error type and Result type in enclave.
 pub mod error;
 mod hex;
 mod ocall;
@@ -120,6 +122,21 @@ impl Ord for KeyPiece {
 	}
 }
 
+/// get rsa shielding pubkey from enclave
+/// # Example
+/// ```
+/// let mut pubkey = [0u8; SGX_RSA3072_KEY_SIZE + SGX_RSA3072_PUB_EXP_SIZE];
+/// let mut retval = sgx_status_t::SGX_SUCCESS;
+/// unsafe {
+/// 	ffi::get_rsa_encryption_pubkey(
+/// 		enclave.geteid(),
+/// 		&mut retval,
+/// 		pubkey.as_mut_ptr(),
+/// 		pubkey.len() as u32,
+/// 	);
+/// };
+/// let rsa_pubkey: Rsa3072PubKey = unsafe { std::mem::transmute(pubkey) };
+/// ```
 #[no_mangle]
 pub unsafe extern "C" fn get_rsa_encryption_pubkey(
 	pubkey: *mut u8,
@@ -164,6 +181,27 @@ pub unsafe extern "C" fn get_rsa_encryption_pubkey(
 	sgx_status_t::SGX_SUCCESS
 }
 
+/// get pubkey of sp_core key pair from enclave
+/// # Example
+/// ```
+/// let mut retval = sgx_status_t::SGX_SUCCESS;
+///	let mut pubkey = [0u8; 32 as usize];
+///
+///	let result = unsafe {
+///		ffi::get_ecc_signing_pubkey(
+///			enclave.geteid(),
+///			&mut retval,
+///			pubkey.as_mut_ptr(),
+///			pubkey.len() as u32,
+///		)
+///	};
+///
+///	ensure!(result == sgx_status_t::SGX_SUCCESS, Error::Sgx(result));
+///	ensure!(retval == sgx_status_t::SGX_SUCCESS, Error::Sgx(retval));
+///
+///	let pubkey = ed25519::Public::from_raw(pubkey);
+///	let tee_account_id = AccountId32::from(*pubkey.as_array_ref());
+/// ```
 #[no_mangle]
 pub unsafe extern "C" fn get_ecc_signing_pubkey(pubkey: *mut u8, pubkey_size: u32) -> sgx_status_t {
 	if let Err(e) = ed25519::create_sealed_if_absent().map_err(Error::Crypto) {
@@ -182,6 +220,22 @@ pub unsafe extern "C" fn get_ecc_signing_pubkey(pubkey: *mut u8, pubkey_size: u3
 	sgx_status_t::SGX_SUCCESS
 }
 
+/// handle sealed keys on chain, and insert it to the queue
+/// # Example
+/// ```
+/// let mut retval = sgx_status_t::SGX_SUCCESS;
+///	let result = unsafe {
+///		ffi::insert_key_piece(
+///			enclave.geteid(),
+///			&mut retval,
+///			key.as_ptr(),
+///			key.len() as u32,
+///			release_time,
+///			current_block,
+///			ext_index,
+///		)
+///	};
+/// ```
 #[no_mangle]
 pub extern "C" fn get_heap_free_count(
 	heap_free_count: *mut usize
@@ -265,6 +319,24 @@ pub extern "C" fn insert_key_piece(
 	sgx_status_t::SGX_SUCCESS
 }
 
+/// check if the key piece is expired and extract it from the enclave if so.
+/// # Example
+/// ```
+/// let mut key: Vec<u8> = vec![0u8; AES_KEY_MAX_SIZE];
+///	let mut from_block: u32 = 0;
+///	let mut ext_index: u32 = 0;
+///	let mut retval = sgx_status_t::SGX_SUCCESS;
+///	let res = unsafe {
+///		ffi::get_expired_key(
+///			enclave.geteid(),
+///			&mut retval,
+///			key.as_mut_ptr(),
+///			AES_KEY_MAX_SIZE as u32,
+///			&mut from_block,
+///			&mut ext_index,
+///		)
+///	};
+/// ```
 #[no_mangle]
 pub extern "C" fn get_expired_key(
 	key: *mut u8,
@@ -300,6 +372,12 @@ pub extern "C" fn get_expired_key(
 	sgx_status_t::SGX_SUCCESS
 }
 
+/// store nonce in enclave memory
+/// # Example
+/// ```
+/// let mut retval = sgx_status_t::SGX_SUCCESS;
+///	let result = unsafe { ffi::set_nonce(enclave.geteid(), &mut retval, nonce) };
+/// ```
 #[no_mangle]
 pub unsafe extern "C" fn set_nonce(nonce: *const u32) -> sgx_status_t {
 	log::info!("[Ecall Set Nonce] Setting the nonce of the enclave to: {}", *nonce);
@@ -317,6 +395,20 @@ pub unsafe extern "C" fn set_nonce(nonce: *const u32) -> sgx_status_t {
 	sgx_status_t::SGX_SUCCESS
 }
 
+/// store node metadata in enclave memory
+/// # Example
+/// ```
+/// let mut retval = sgx_status_t::SGX_SUCCESS;
+///
+///	let result = unsafe {
+///		ffi::set_node_metadata(
+///			enclave.geteid(),
+///			&mut retval,
+///			metadata.as_ptr(),
+///			metadata.len() as u32,
+///		)
+///	};
+/// ```
 #[no_mangle]
 pub unsafe extern "C" fn set_node_metadata(
 	node_metadata: *const u8,
@@ -341,6 +433,24 @@ pub unsafe extern "C" fn set_node_metadata(
 	sgx_status_t::SGX_SUCCESS
 }
 
+/// Construct ext for expired key
+/// # Example
+/// ```
+/// let mut key: Vec<u8> = vec![0u8; AES_KEY_MAX_SIZE];
+///	let mut from_block: u32 = 0;
+///	let mut ext_index: u32 = 0;
+///	let mut retval = sgx_status_t::SGX_SUCCESS;
+///	let res = unsafe {
+///		ffi::get_expired_key(
+///			enclave.geteid(),
+///			&mut retval,
+///			key.as_mut_ptr(),
+///			AES_KEY_MAX_SIZE as u32,
+///			&mut from_block,
+///			&mut ext_index,
+///		)
+///	};
+/// ```
 #[no_mangle]
 pub unsafe extern "C" fn perform_expire_key(
 	genesis_hash: *const u8,
@@ -427,6 +537,39 @@ pub unsafe extern "C" fn perform_expire_key(
 	sgx_status_t::SGX_SUCCESS
 }
 
+/// test decrypt cipher
+/// # Example
+/// ```
+/// let enclave = match enclave_init() {
+///	    Ok(r) => {
+///			info!("[+] Init Enclave Successful {}!", r.geteid());
+///			r
+///		},
+///		Err(x) => {
+///   	 info!("[-] Init Enclave Failed {}!", x.as_str());
+///			return
+///		},
+///	};
+///	println!("shielding pub key");
+///	let rsa_pubkey = get_shielding_pubkey(&enclave);
+///	let plaintext: Vec<u8> = "test encrypt text and decrypt cipher".to_string().into_bytes();
+///	let mut ciphertext: Vec<u8> = Vec::new();
+///	rsa_pubkey.encrypt_buffer(&plaintext, &mut ciphertext).expect("Encrypt Error");
+///
+///	let mut retval = sgx_status_t::SGX_SUCCESS;
+///	let mut res: u8 = 1;
+///	unsafe {
+///		ffi::test_decrypt(
+///			enclave.geteid(),
+///			&mut retval,
+///			plaintext.as_ptr(),
+///			plaintext.len() as u32,
+///			ciphertext.as_ptr(),
+///			ciphertext.len() as u32,
+///			&mut res,
+///		);
+///	};
+/// ```
 #[no_mangle]
 pub extern "C" fn test_decrypt(
 	plain: *const u8,
@@ -458,6 +601,24 @@ pub extern "C" fn test_decrypt(
 	sgx_status_t::SGX_SUCCESS
 }
 
+/// test key piece timestamp
+/// # Example
+/// ```
+/// let release_time:u64 = 1660030399;
+/// let key: ShieldedKey = cipher_private_key;
+/// let mut retval = sgx_status_t::SGX_SUCCESS;
+/// let mut res: u8 = 1;
+/// unsafe {
+/// 	ffi::test_key_piece(
+/// 		enclave.geteid(),
+/// 		&mut retval,
+/// 		key.as_ptr(),
+/// 		key.len() as u32,
+/// 		release_time,
+/// 		&mut res,
+/// 	);
+/// };
+/// ```
 #[no_mangle]
 pub extern "C" fn test_key_piece(
 	key: *const u8,
@@ -566,6 +727,7 @@ fn provisioning_key(key_ptr: *const u8, some_len: usize, file_name: &str) {
 	}
 }
 
+/// Write the slice data back to the parameter passed into enclave
 pub fn write_slice_and_whitespace_pad(writable: &mut [u8], data: Vec<u8>) -> Result<()> {
 	let (left, right) = writable.split_at_mut(data.len());
 	left.clone_from_slice(&data);

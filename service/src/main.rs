@@ -15,12 +15,15 @@
 
 */
 #![cfg_attr(debug_assertions, allow(dead_code, unused_imports))]
+/// Config for keyholder
 mod config;
+/// Enclave api
 mod enclave;
-
+/// Ocall implemetation
 mod ocall;
 #[cfg(test)]
 mod test;
+/// Some utils for service
 mod utils;
 
 extern crate core;
@@ -68,10 +71,13 @@ struct Args {
 	config: String,
 }
 
+/// On chain event collection
 type Events = Vec<EventRecord<RuntimeEvent, Hash>>;
 
+/// Decoded Event of the TREXData type
 pub type DecodedTREXData = TREXData<AccountId, Moment, BlockNumber>;
 
+/// Main function executed by keyholder
 fn main() {
 	// Setup logging
 	env_logger::init();
@@ -227,12 +233,14 @@ fn handle_key_piece(enclave:&SgxEnclave,tmp_key_piece:TmpKeyPiece,key_piece_cach
 	}
 }
 
+/// Parse the monitored events
 fn parse_events(event: String) -> Result<Events, String> {
 	let _unhex = Vec::from_hex(event).map_err(|_| "Decoding Events Failed".to_string())?;
 	let mut _er_enc = _unhex.as_slice();
 	Events::decode(&mut _er_enc).map_err(|_| "Decoding Events Failed".to_string())
 }
 
+/// Send expired keys to the chain
 fn send_expired_key(
 	config: &ApiConfig,
 	enclave: &SgxEnclave,
@@ -271,6 +279,7 @@ fn send_expired_key(
 	send_uxt(&config, uxt, XtStatus::SubmitOnly);
 }
 
+/// Send uxt to chain
 fn send_uxt(config: &ApiConfig, uxt: Vec<u8>, exit_on: XtStatus) {
 	let api = get_api(&config).unwrap();
 	let mut xthex = hex::encode(uxt);

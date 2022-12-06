@@ -274,6 +274,7 @@ pub fn insert_key_piece(
 	Ok(())
 }
 
+/// Get the private key that needs to be released at the time
 /// check if the key piece is expired and extract it from the enclave if so.
 pub fn get_expired_key(enclave: &SgxEnclave) -> Option<(Vec<u8>, u32, u32)> {
 	let mut key: Vec<u8> = vec![0u8; AES_KEY_MAX_SIZE];
@@ -301,6 +302,7 @@ pub fn get_expired_key(enclave: &SgxEnclave) -> Option<(Vec<u8>, u32, u32)> {
 	}
 }
 
+/// The expired key to be released will be constructed as uxt on the chain
 /// generate remote attestation report and construct an unchecked extrinsic which will send by pallet-teerex
 pub fn perform_expire_key(
 	enclave: &SgxEnclave,

@@ -20,10 +20,14 @@ static DEFAULT_NODE_PORT: u16 = 9944;
 static DEFAULT_MU_RA_PORT: u16 = 3443;
 static DEFAULT_METRICS_PORT: u16 = 8787;
 
+/// Config struct
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Config {
+	/// node ip
 	pub node_ip: String,
+	/// node port
 	pub node_port: u16,
+	/// keyholder service ip address
 	pub keyholder_ip: String,
 	/// Mutual remote attestation address that will be returned by the dedicated trusted ws rpc call.
 	pub mu_ra_external_address: Option<String>,

@@ -39,6 +39,7 @@ pub struct Sha256PrivateKeyTime {
 	pub timestamp: u64,
 }
 
+/// Structure containing private key and private_key_time hash
 #[derive(Clone, PartialEq, Eq, Encode, Decode, Debug)]
 pub struct Sha256PrivateKeyHash {
 	pub aes_private_key: Vec<u8>,
@@ -51,6 +52,7 @@ pub trait Hash<I, E: Encode> {
 	fn hash(&self) -> I;
 }
 
+/// Impl Hash trait for Sha256PrivateKeyTime
 #[cfg(feature = "std")]
 impl Hash<Vec<u8>, U256> for Sha256PrivateKeyTime {
 	fn hash(&self) -> Vec<u8> {
