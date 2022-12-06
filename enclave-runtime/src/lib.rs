@@ -79,6 +79,10 @@ pub mod error;
 mod hex;
 mod ocall;
 mod utils;
+mod nts;
+mod records;
+mod aeadnts;
+mod byteorder;
 
 use crate::error::{Error, Result};
 use sp_core::{crypto::Pair, Decode, Encode};
@@ -96,6 +100,7 @@ pub use substrate_api_client::{
 	PlainTipExtrinsicParamsBuilder, SubstrateDefaultSignedExtra, UncheckedExtrinsicV4,
 };
 use tkp_hash::{Sha256PrivateKeyHash, Sha256PrivateKeyTime};
+use aes_siv::Aes128SivAead;
 
 lazy_static! {
 	static ref MIN_BINARY_HEAP: Mutex<BinaryHeap<Reverse<KeyPiece>>> =

@@ -203,3 +203,17 @@ pub extern "C" fn ocall_get_update_info(
 ) -> sgx_status_t {
 	unsafe { sgx_report_attestation_status(platform_blob, enclave_trusted, update_info) }
 }
+
+#[no_mangle]
+pub extern "C" fn ocall_get_nts_socket(ret_fd: *mut c_int) -> sgx_status_t {
+	let port = 4460;
+	let hostname = "time.cloudflare.com";
+	let addr = lookup_ipv4(hostname, port);
+	let sock = TcpStream::connect(&addr).expect("[-] Connect tls server failed!");
+
+	unsafe {
+		*ret_fd = sock.into_raw_fd();
+	}
+
+	sgx_status_t::SGX_SUCCESS
+}

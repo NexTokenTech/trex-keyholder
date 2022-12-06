@@ -30,7 +30,7 @@ use aes_gcm::{
 };
 use clap::Parser;
 use config::Config as ApiConfig;
-use enclave::api::{enclave_account, enclave_init};
+use enclave::api::{enclave_account, enclave_init, perform_nts_time};
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
 #[allow(unused)]
@@ -56,6 +56,7 @@ use utils::{
 		get_shielding_key, TREX,
 	},
 };
+use crate::enclave::ffi::obtain_nts_time;
 
 /// Arguments for the cli.
 #[derive(Parser, Debug)]
@@ -83,6 +84,7 @@ enum Action {
 	SigningPubKey,
 	/// Obtain the balance in the account
 	GetFreeBalance,
+	TestNts
 }
 
 /// Seed of signature keypair for testing
@@ -219,6 +221,9 @@ fn main() {
 			let free_balance = get_free_balance(&tee_account_id, &config).unwrap();
 			println!("{:?}", free_balance);
 		},
+		Action::TestNts => unsafe {
+			let res = perform_nts_time(&enclave).unwrap();
+		}
 	}
 }
 

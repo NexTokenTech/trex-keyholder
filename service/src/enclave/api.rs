@@ -344,3 +344,26 @@ pub fn perform_expire_key(
 
 	Ok(unchecked_extrinsic)
 }
+
+pub fn perform_nts_time(
+	enclave: &SgxEnclave
+) -> Result<(), Error> {
+	let mut retval = sgx_status_t::SGX_SUCCESS;
+	let result = unsafe {
+		ffi::obtain_nts_time(
+			enclave.geteid(),
+			&mut retval,
+		)
+	};
+
+	match result {
+		sgx_status_t::SGX_SUCCESS => {
+			println!("ECALL Nts Time Success!");
+		},
+		_ => {
+			println!("[-] ECALL Nts Time Enclave Failed {}!", result.as_str());
+		},
+	}
+
+	Ok(())
+}
