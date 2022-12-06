@@ -216,21 +216,21 @@ pub fn enclave_account(enclave: &SgxEnclave) -> Result<AccountId32, Error> {
 }
 
 /// Get the remaining heap locations
-pub fn get_heap_left_count(
+pub fn get_heap_free_count(
 	enclave: &SgxEnclave
 ) -> Result<usize, Error>{
 	let mut retval = sgx_status_t::SGX_SUCCESS;
-	let mut heap_left_count:usize = 0;
+	let mut heap_free_count:usize = 0;
 	let result = unsafe {
-		ffi::get_heap_left_count(
+		ffi::get_heap_free_count(
 			enclave.geteid(),
 			&mut retval,
-			&mut heap_left_count
+			&mut heap_free_count
 		)
 	};
 	ensure!(result == sgx_status_t::SGX_SUCCESS, Error::Sgx(result));
 	ensure!(retval == sgx_status_t::SGX_SUCCESS, Error::Sgx(retval));
-	Ok(heap_left_count)
+	Ok(heap_free_count)
 }
 
 /// clear heap for uni-test using.

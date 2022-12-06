@@ -183,13 +183,13 @@ pub unsafe extern "C" fn get_ecc_signing_pubkey(pubkey: *mut u8, pubkey_size: u3
 }
 
 #[no_mangle]
-pub extern "C" fn get_heap_left_count(
-	heap_left_count: *mut usize
+pub extern "C" fn get_heap_free_count(
+	heap_free_count: *mut usize
 ) -> sgx_status_t {
 	let min_heap = MIN_BINARY_HEAP.lock().unwrap();
-	let left_count = MIN_HEAP_MAX_SIZE - min_heap.len();
+	let free_count = MIN_HEAP_MAX_SIZE - min_heap.len();
 	unsafe {
-		*heap_left_count = left_count;
+		*heap_free_count = free_count;
 	}
 	sgx_status_t::SGX_SUCCESS
 }

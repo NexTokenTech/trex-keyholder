@@ -208,9 +208,9 @@ fn main() {
 fn handle_key_piece(enclave:&SgxEnclave,tmp_key_piece:TmpKeyPiece,key_piece_cache:&mut BinaryHeap<Reverse<TmpKeyPiece>>){
 	key_piece_cache.push(Reverse(tmp_key_piece));
 	// Get the remaining heap locations
-	let heap_left_count = get_heap_left_count(&enclave).unwrap_or(0);
-	if heap_left_count > 0 && key_piece_cache.len() > 0{
-		let insert_count = min(key_piece_cache.len(),heap_left_count);
+	let heap_free_count = get_heap_free_count(&enclave).unwrap_or(0);
+	if heap_free_count > 0 && key_piece_cache.len() > 0{
+		let insert_count = min(key_piece_cache.len(),heap_free_count);
 		for _i in 0..insert_count {
 			if let Some(Reverse(item)) = key_piece_cache.peek() {
 				insert_key_piece(

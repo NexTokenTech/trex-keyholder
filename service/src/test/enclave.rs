@@ -34,7 +34,7 @@ use sgx_types::sgx_status_t;
 use sgx_urts::SgxEnclave;
 use tkp_settings::keyholder::{AES_KEY_MAX_SIZE,MIN_HEAP_MAX_SIZE};
 use trex_primitives::ShieldedKey;
-use crate::enclave::api::{clear_heap, get_heap_left_count, insert_key_piece};
+use crate::enclave::api::{clear_heap, get_heap_free_count, insert_key_piece};
 use std::cmp::{min, Ordering, Reverse};
 use std::collections::binary_heap::BinaryHeap;
 
@@ -148,10 +148,10 @@ pub fn enclave_heap_over_head_works(){
 		};
 		key_piece_cache.push(Reverse(key_piece));
 		// Get the remaining heap locations
-		let heap_left_count = get_heap_left_count(&enclave).unwrap_or(0);
-		println!("~~~~~~~~~~~~~~~~~~~~~left:{:?}",heap_left_count);
-		if heap_left_count > 0 && key_piece_cache.len() > 0{
-			let insert_count = min(key_piece_cache.len(),heap_left_count);
+		let heap_free_count = get_heap_free_count(&enclave).unwrap_or(0);
+		println!("~~~~~~~~~~~~~~~~~~~~~left:{:?}",heap_free_count);
+		if heap_free_count > 0 && key_piece_cache.len() > 0{
+			let insert_count = min(key_piece_cache.len(),heap_free_count);
 			for i in 0..insert_count {
 				if let Some(Reverse(item)) = key_piece_cache.peek() {
 					insert_key_piece(
