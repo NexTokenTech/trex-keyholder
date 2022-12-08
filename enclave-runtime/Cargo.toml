@@ -46,6 +46,7 @@ webpki-roots= { git = "https://github.com/mesalock-linux/webpki-roots", branch =
 serde_json = { git = "https://github.com/mesalock-linux/serde-json-sgx" }
 serde = { git = "https://github.com/mesalock-linux/serde-sgx" }
 serde_derive = { git = "https://github.com/mesalock-linux/serde-sgx" }
+rand = { git = "https://github.com/mesalock-linux/rand-sgx" }
 lazy_static = { version = "*", default-features = false, features = ["spin_no_std"] }
 derive_more = { version = "0.99.5" }
 

@@ -17,8 +17,8 @@ use aes_siv::{
     KeyInit,
     AeadCore
 };
-// use rand::Rng;
-use sgx_rand::*;
+use rand::Rng;
+// use sgx_rand::*;
 
 use std::io::{Cursor, Error, ErrorKind, Read, Write};
 use std::panic;
@@ -254,12 +254,12 @@ fn parse_extensions(buff: &[u8]) -> Result<Vec<NtpExtension>, std::io::Error> {
     while buff.len() - reader.position() as usize >= 4 {
         let ext_type = reader.read_u16::<BigEndian>()?;
         let ext_len = reader.read_u16::<BigEndian>()?;
-        if ext_len % 4 != 0 {
-            return Err(Error::new(
-                ErrorKind::InvalidInput,
-                "extension not on word boundary",
-            ));
-        }
+        // if ext_len % 4 != 0 {
+        //     return Err(Error::new(
+        //         ErrorKind::InvalidInput,
+        //         "extension not on word boundary",
+        //     ));
+        // }
         if ext_len < 4 {
             return Err(Error::new(ErrorKind::InvalidInput, "extension too short"));
         }
@@ -406,12 +406,10 @@ pub fn serialize_nts_packet<T: AeadInPlace>(packet: NtsPacket, encryptor: &mut T
         .expect("Nts extensions could not be written, failed to serialize NtsPacket");
     let plaintext = serialize_extensions(packet.auth_enc_exts);
     let mut nonce = [0; NONCE_LEN];
-    // rand::thread_rng().fill(&mut nonce);
-    let mut os_rng = os::SgxRng::new().unwrap();
-    os_rng.fill_bytes(&mut nonce);
-    println!("I'm will cipher");
+    rand::thread_rng().fill(&mut nonce);
+
     let ciphertext = encrypt(encryptor,&nonce, &buff.get_ref(), &plaintext);
-    println!("after cipher");
+
     let mut authent_buffer = Cursor::new(Vec::new());
     authent_buffer.write_u16::<BigEndian>(NONCE_LEN as u16)
         .expect("Nonce length could not be written, failed to serialize NtsPacket"); // length of the nonce
@@ -441,9 +439,7 @@ pub fn serialize_nts_packet<T: AeadInPlace>(packet: NtsPacket, encryptor: &mut T
 fn encrypt<T: AeadInPlace>(encryptor: &mut T,nonce: &[u8], associated_data: &[u8], plaintext: &[u8]) -> Vec<u8> {
     let mut buffer = vec![0; IV_SIZE + plaintext.len()];
     buffer[IV_SIZE..].copy_from_slice(plaintext);
-    println!("ddddd");
     encryptor.encrypt_in_place(&GenericArray::from_slice(nonce), associated_data, &mut buffer);
-    println!("aaaaa");
     buffer
 }
 

@@ -81,7 +81,7 @@ mod ocall;
 mod utils;
 mod nts;
 mod records;
-mod aeadnts;
+mod nts_protocol;
 mod byteorder;
 
 use crate::error::{Error, Result};

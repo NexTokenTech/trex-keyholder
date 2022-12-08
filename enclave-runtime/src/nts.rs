@@ -18,7 +18,6 @@
 
 use crate::ocall::ffi;
 use log::*;
-use sgx_rand::*;
 use sgx_tcrypto::*;
 use sgx_tse::*;
 use sgx_types::{SGX_RSA3072_KEY_SIZE, *};
@@ -27,7 +26,7 @@ use std::{io::{Read, Write}, net::TcpStream, prelude::v1::*,ptr, slice, str, str
 use std::net::Shutdown;
 use webpki;
 use webpki_roots;
-
+use rand::Rng;
 use crate::records::{
 	// Functions.
 	serialize,
@@ -63,16 +62,16 @@ use std::net::{UdpSocket, ToSocketAddrs};
 use std::time::{Duration, SystemTime};
 use std::untrusted::time::SystemTimeEx;
 
-use crate::aeadnts::protocol::parse_nts_packet;
-use crate::aeadnts::protocol::serialize_nts_packet;
-use crate::aeadnts::protocol::LeapState;
-use crate::aeadnts::protocol::NtpExtension;
-use crate::aeadnts::protocol::NtpExtensionType::*;
-use crate::aeadnts::protocol::NtpPacketHeader;
-use crate::aeadnts::protocol::NtsPacket;
-use crate::aeadnts::protocol::PacketMode::Client;
-use crate::aeadnts::protocol::TWO_POW_32;
-use crate::aeadnts::protocol::UNIX_OFFSET;
+use crate::nts_protocol::protocol::parse_nts_packet;
+use crate::nts_protocol::protocol::serialize_nts_packet;
+use crate::nts_protocol::protocol::LeapState;
+use crate::nts_protocol::protocol::NtpExtension;
+use crate::nts_protocol::protocol::NtpExtensionType::*;
+use crate::nts_protocol::protocol::NtpPacketHeader;
+use crate::nts_protocol::protocol::NtsPacket;
+use crate::nts_protocol::protocol::PacketMode::Client;
+use crate::nts_protocol::protocol::TWO_POW_32;
+use crate::nts_protocol::protocol::UNIX_OFFSET;
 
 use aes_siv::{
 	Aes128SivAead,
@@ -159,11 +158,11 @@ pub unsafe extern "C" fn obtain_nts_time(
 	};
 
 	if res != sgx_status_t::SGX_SUCCESS {
-		println!("{:?}",res);
+		debug!("{:?}",res);
 	}
 
 	if rt != sgx_status_t::SGX_SUCCESS {
-		println!("{:?}",rt);
+		debug!("{:?}",rt);
 	}
 
 	let mut tls_config = rustls::ClientConfig::new();
@@ -207,7 +206,7 @@ pub unsafe extern "C" fn obtain_nts_time(
 		// We should use `read_exact` here because we always need to read 4 bytes to get the
 		// header.
 		if let Err(error) = tls_stream.read_exact(&mut header[..]) {
-			println!("tls stream read exact error:{:?}",error);
+			debug!("tls stream read exact error:{:?}",error);
 		}
 
 		// Retrieve a body length from the 3rd and 4th bytes of the header.
@@ -216,7 +215,7 @@ pub unsafe extern "C" fn obtain_nts_time(
 
 		// `read_exact` the length of the body.
 		if let Err(error) = tls_stream.read_exact(body.as_mut_slice()) {
-			println!("tls stream read exact error:{:?}",error);
+			debug!("tls stream read exact error:{:?}",error);
 		}
 
 		// Reconstruct the whole record byte array to let the `records` module deserialize it.
@@ -232,29 +231,29 @@ pub unsafe extern "C" fn obtain_nts_time(
 				match status {
 					Ok(_) => {}
 					Err(err) => {
-						println!("{:?}",err);
+						debug!("{:?}",err);
 					}
 				}
 			}
 			Err(DeserializeError::UnknownNotCriticalRecord) => {
 				// If it's not critical, just ignore the error.
-				println!("unknown record type");
+				debug!("unknown record type");
 			}
 			Err(DeserializeError::UnknownCriticalRecord) => {
 				// TODO: This should propertly handled by sending an Error record.
-				println!("error: unknown critical record");
+				debug!("error: unknown critical record");
 			}
 			Err(DeserializeError::Parsing(error)) => {
 				// TODO: This shouldn't be wrapped as a trait object.
-				println!("error: {}", error);
+				debug!("error: {}", error);
 			}
 		}
 	}
-	println!("saw the end of the response");
+	debug!("saw the end of the response");
 	match sock.shutdown(Shutdown::Write) {
 		Ok(_) => {},
 		Err(err) => {
-			println!("stream shut down error:{:?}",err);
+			debug!("stream shut down error:{:?}",err);
 		}
 	};
 
@@ -274,14 +273,10 @@ pub unsafe extern "C" fn obtain_nts_time(
 		use_ipv4: Some(true),
 	};
 
-	println!("nts sock:{:?}",state.cookies);
-	println!("next server:{:?}",state.next_server);
-	println!("next port:{:?}",state.next_port);
-
 	let res = run_nts_ntp_client(state);
 	match res {
 		Err(err) => {
-			println!("failure of client: {}", err);
+			debug!("failure of client: {}", err);
 			// process::exit(1)
 		}
 		Ok(result) => {
@@ -348,8 +343,7 @@ pub fn run_nts_ntp_client(
 		transmit_timestamp: 0,
 	};
 	let mut unique_id: Vec<u8> = vec![0; 32];
-	let mut os_rng = os::SgxRng::new().unwrap();
-	os_rng.fill_bytes(&mut unique_id);
+	rand::thread_rng().fill(&mut unique_id[..]);
 	let exts = vec![
 		NtpExtension {
 			ext_type: UniqueIdentifier,
@@ -369,11 +363,11 @@ pub fn run_nts_ntp_client(
 	let wire_packet = &serialize_nts_packet::<Aes128SivAead>(packet, &mut send_aead);
 	let t1 = system_to_ntpfloat(SystemTime::now());
 	socket.send(wire_packet)?;
-	println!("transmitting packet");
+	debug!("transmitting packet");
 	let mut buff = [0; BUFF_SIZE];
 	let (size, _origin) = socket.recv_from(&mut buff)?;
 	let t4 = system_to_ntpfloat(SystemTime::now());
-	println!("received packet");
+	debug!("received packet");
 	let received = parse_nts_packet::<Aes128SivAead>(&buff[0..size], &mut recv_aead);
 	match received {
 		Err(x) => Err(Box::new(x)),

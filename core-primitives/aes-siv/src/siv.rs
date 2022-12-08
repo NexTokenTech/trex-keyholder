@@ -20,6 +20,7 @@ use core::ops::Add;
 use dbl::Dbl;
 use digest::{CtOutput, FixedOutputReset, Mac};
 use zeroize::Zeroize;
+use sgx_tstd::println;
 
 #[cfg(feature = "alloc")]
 use alloc::vec::Vec;
@@ -145,15 +146,7 @@ where
         I: IntoIterator<Item = T>,
         T: AsRef<[u8]>,
     {
-        let pt_len = buffer.len();
-
-        // Make room in the buffer for the SIV tag. It needs to be prepended.
-        buffer.extend_from_slice(Tag::default().as_slice())?;
-
-        // TODO(tarcieri): add offset param to `encrypt_in_place_detached`
-        buffer.as_mut().copy_within(..pt_len, IV_SIZE);
-
-        let tag = self.encrypt_in_place_detached(headers, &mut buffer.as_mut()[IV_SIZE..])?;
+        let tag = self.encrypt_in_place_detached(headers, &mut buffer.as_mut()[..IV_SIZE])?;
         buffer.as_mut()[..IV_SIZE].copy_from_slice(tag.as_slice());
         Ok(())
     }
@@ -173,10 +166,15 @@ where
         I: IntoIterator<Item = T>,
         T: AsRef<[u8]>,
     {
+        if plaintext.len() < IV_SIZE {
+            panic!("plaintext buffer too small to hold MAC tag!");
+        }
+
+        let (siv_tag, msg) = plaintext.split_at_mut(IV_SIZE);
         // Compute the synthetic IV for this plaintext
-        let siv_tag = s2v(&mut self.mac, headers, plaintext)?;
-        self.xor_with_keystream(siv_tag, plaintext);
-        Ok(siv_tag)
+        siv_tag.copy_from_slice(&s2v(&mut self.mac, headers, msg).unwrap());
+        self.xor_with_keystream(GenericArray::from_slice(siv_tag).clone(), msg);
+        Ok(GenericArray::from_slice(siv_tag).clone())
     }
 
     /// Decrypt the given ciphertext, allocating and returning a Vec<u8> for the plaintext
@@ -289,7 +287,6 @@ where
 {
     Mac::update(mac, &Tag::default());
     let mut state = mac.finalize_reset().into_bytes();
-
     for (i, header) in headers.into_iter().enumerate() {
         if i >= MAX_HEADERS {
             return Err(Error);
@@ -300,7 +297,6 @@ where
         let code = mac.finalize_reset().into_bytes();
         xor_in_place(&mut state, &code);
     }
-
     if message.len() >= IV_SIZE {
         let n = message.len().checked_sub(IV_SIZE).unwrap();
 
@@ -311,7 +307,6 @@ where
         xor_in_place(&mut state, message);
         state[message.len()] ^= 0x80;
     };
-
     Mac::update(mac, state.as_ref());
     Ok(mac.finalize_reset().into_bytes())
 }
