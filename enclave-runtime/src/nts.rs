@@ -17,32 +17,24 @@
 */
 
 use crate::ocall::ffi;
-use log::*;
-use sgx_tcrypto::*;
-use sgx_tse::*;
-use sgx_types::{SGX_RSA3072_KEY_SIZE, *};
-use sp_core::{blake2_256, Decode, Encode, Pair};
-use std::{io::{Read, Write}, net::TcpStream, prelude::v1::*,ptr, slice, str, string::String, sync::Arc, untrusted::fs, vec::Vec};
-use std::net::Shutdown;
-use webpki;
-use webpki_roots;
-use rand::Rng;
 use crate::records::{
-	// Functions.
-	serialize,
 	deserialize,
+	gen_key,
 	process_record,
 
+	// Functions.
+	serialize,
 	// Records.
 	AeadAlgorithmRecord,
-	EndOfMessageRecord,
-
 	// Errors.
 	DeserializeError,
+
+	EndOfMessageRecord,
 
 	// Enums.
 	KnownAeadAlgorithm,
 	KnownNextProtocol,
+	NTSKeys,
 	NextProtocolRecord,
 	NtsKeParseError,
 	Party,
@@ -52,32 +44,40 @@ use crate::records::{
 
 	// Constants.
 	HEADER_SIZE,
-	gen_key,
-	NTSKeys
 };
-use std::error::Error;
-use std::fmt;
-
-use std::net::{UdpSocket, ToSocketAddrs};
-use std::time::{Duration, SystemTime};
-use std::untrusted::time::SystemTimeEx;
-
-use crate::nts_protocol::protocol::parse_nts_packet;
-use crate::nts_protocol::protocol::serialize_nts_packet;
-use crate::nts_protocol::protocol::LeapState;
-use crate::nts_protocol::protocol::NtpExtension;
-use crate::nts_protocol::protocol::NtpExtensionType::*;
-use crate::nts_protocol::protocol::NtpPacketHeader;
-use crate::nts_protocol::protocol::NtsPacket;
-use crate::nts_protocol::protocol::PacketMode::Client;
-use crate::nts_protocol::protocol::TWO_POW_32;
-use crate::nts_protocol::protocol::UNIX_OFFSET;
-
-use aes_siv::{
-	Aes128SivAead,
-	KeyInit,
-	aead::{generic_array::GenericArray},
+use log::*;
+use rand::Rng;
+use sgx_tcrypto::*;
+use sgx_tse::*;
+use sgx_types::{SGX_RSA3072_KEY_SIZE, *};
+use sp_core::{blake2_256, Decode, Encode, Pair};
+use std::{
+	error::Error,
+	fmt,
+	io::{Read, Write},
+	net::{Shutdown, TcpStream},
+	prelude::v1::*,
+	ptr, slice, str,
+	string::String,
+	sync::Arc,
+	untrusted::fs,
+	vec::Vec,
 };
+use webpki;
+use webpki_roots;
+
+use std::{
+	net::{ToSocketAddrs, UdpSocket},
+	time::{Duration, SystemTime},
+	untrusted::time::SystemTimeEx,
+};
+
+use crate::nts_protocol::protocol::{
+	parse_nts_packet, serialize_nts_packet, LeapState, NtpExtension, NtpExtensionType::*,
+	NtpPacketHeader, NtsPacket, PacketMode::Client, TWO_POW_32, UNIX_OFFSET,
+};
+
+use aes_siv::{aead::generic_array::GenericArray, Aes128SivAead, KeyInit};
 
 use self::NtpClientError::*;
 
@@ -92,7 +92,7 @@ pub struct NtpResult {
 pub enum NtpClientError {
 	NoIpv4AddrFound,
 	NoIpv6AddrFound,
-	InvalidUid
+	InvalidUid,
 }
 
 const DEFAULT_NTP_PORT: u16 = 123;
@@ -147,8 +147,27 @@ fn timestamp_to_float(time: u64) -> f64 {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn obtain_nts_time(
-) -> sgx_status_t {
+pub unsafe extern "C" fn obtain_nts_time() -> sgx_status_t {
+	let res = run_nts_ke_client();
+
+	let state = res.unwrap();
+
+	let res = run_nts_ntp_client(state);
+	match res {
+		Err(err) => {
+			debug!("failure of client: {}", err);
+			// process::exit(1)
+		},
+		Ok(result) => {
+			println!("stratum: {:}", result.stratum);
+			println!("offset: {:.6}", result.time_diff);
+		},
+	}
+
+	sgx_status_t::SGX_SUCCESS
+}
+
+pub fn run_nts_ke_client() -> Result<NtsKeResult, Box<dyn Error>> {
 	let mut rt: sgx_status_t = sgx_status_t::SGX_ERROR_UNEXPECTED;
 	// (1.5) get sigrl
 	let mut nts_sock: i32 = 0;
@@ -158,20 +177,18 @@ pub unsafe extern "C" fn obtain_nts_time(
 	};
 
 	if res != sgx_status_t::SGX_SUCCESS {
-		debug!("{:?}",res);
+		debug!("{:?}", res);
 	}
 
 	if rt != sgx_status_t::SGX_SUCCESS {
-		debug!("{:?}",rt);
+		debug!("{:?}", rt);
 	}
 
 	let mut tls_config = rustls::ClientConfig::new();
 	let alpn_proto = String::from("ntske/1");
 	let alpn_bytes = alpn_proto.into_bytes();
 	tls_config.set_protocols(&[alpn_bytes]);
-	tls_config
-		.root_store
-		.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
+	tls_config.root_store.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
 
 	let rc_config = Arc::new(tls_config);
 	let hostname = webpki::DNSNameRef::try_from_ascii_str(NTS_HOSTNAME).unwrap();
@@ -206,7 +223,7 @@ pub unsafe extern "C" fn obtain_nts_time(
 		// We should use `read_exact` here because we always need to read 4 bytes to get the
 		// header.
 		if let Err(error) = tls_stream.read_exact(&mut header[..]) {
-			debug!("tls stream read exact error:{:?}",error);
+			debug!("tls stream read exact error:{:?}", error);
 		}
 
 		// Retrieve a body length from the 3rd and 4th bytes of the header.
@@ -215,7 +232,7 @@ pub unsafe extern "C" fn obtain_nts_time(
 
 		// `read_exact` the length of the body.
 		if let Err(error) = tls_stream.read_exact(body.as_mut_slice()) {
-			debug!("tls stream read exact error:{:?}",error);
+			debug!("tls stream read exact error:{:?}", error);
 		}
 
 		// Reconstruct the whole record byte array to let the `records` module deserialize it.
@@ -229,70 +246,51 @@ pub unsafe extern "C" fn obtain_nts_time(
 			Ok(record) => {
 				let status = process_record(record, &mut state);
 				match status {
-					Ok(_) => {}
+					Ok(_) => {},
 					Err(err) => {
-						debug!("{:?}",err);
-					}
+						debug!("{:?}", err);
+					},
 				}
-			}
+			},
 			Err(DeserializeError::UnknownNotCriticalRecord) => {
 				// If it's not critical, just ignore the error.
 				debug!("unknown record type");
-			}
+			},
 			Err(DeserializeError::UnknownCriticalRecord) => {
 				// TODO: This should propertly handled by sending an Error record.
 				debug!("error: unknown critical record");
-			}
+			},
 			Err(DeserializeError::Parsing(error)) => {
 				// TODO: This shouldn't be wrapped as a trait object.
 				debug!("error: {}", error);
-			}
+			},
 		}
 	}
 	debug!("saw the end of the response");
 	match sock.shutdown(Shutdown::Write) {
 		Ok(_) => {},
 		Err(err) => {
-			debug!("stream shut down error:{:?}",err);
-		}
+			debug!("stream shut down error:{:?}", err);
+		},
 	};
 
-	let aead_scheme = if state.aead_scheme.is_empty() {
-		DEFAULT_SCHEME
-	} else {
-		state.aead_scheme[0]
-	};
+	let aead_scheme =
+		if state.aead_scheme.is_empty() { DEFAULT_SCHEME } else { state.aead_scheme[0] };
 
 	let state = NtsKeResult {
-		aead_scheme: aead_scheme,
+		aead_scheme,
 		cookies: state.cookies,
 		next_protocols: state.next_protocols,
 		next_server: state.next_server.unwrap_or(NTS_HOSTNAME.to_string()),
 		next_port: state.next_port.unwrap_or(DEFAULT_NTP_PORT),
-		keys: keys,
+		keys,
 		use_ipv4: Some(true),
 	};
-
-	let res = run_nts_ntp_client(state);
-	match res {
-		Err(err) => {
-			debug!("failure of client: {}", err);
-			// process::exit(1)
-		}
-		Ok(result) => {
-			println!("stratum: {:}", result.stratum);
-			println!("offset: {:.6}", result.time_diff);
-		}
-	}
-
-	sgx_status_t::SGX_SUCCESS
+	Ok(state)
 }
 
 /// Run the NTS client with the given data from key exchange
-pub fn run_nts_ntp_client(
-	state: NtsKeResult,
-) -> Result<NtpResult, Box<dyn Error>> {
-
+pub fn run_nts_ntp_client(state: NtsKeResult) -> Result<NtpResult, Box<dyn Error>> {
 	let mut ip_addrs = (state.next_server.as_str(), state.next_port).to_socket_addrs()?;
 	let addr;
 	let socket;
@@ -301,14 +299,14 @@ pub fn run_nts_ntp_client(
 			// mandated to use ipv4
 			addr = ip_addrs.find(|&x| x.is_ipv4());
 			if addr == None {
-				return Err(Box::new(NoIpv4AddrFound));
+				return Err(Box::new(NoIpv4AddrFound))
 			}
 			socket = UdpSocket::bind("0.0.0.0:0");
 		} else {
 			// mandated to use ipv6
 			addr = ip_addrs.find(|&x| x.is_ipv6());
 			if addr == None {
-				return Err(Box::new(NoIpv6AddrFound));
+				return Err(Box::new(NoIpv6AddrFound))
 			}
 			socket = UdpSocket::bind("[::]:0");
 		}
@@ -345,20 +343,10 @@ pub fn run_nts_ntp_client(
 	let mut unique_id: Vec<u8> = vec![0; 32];
 	rand::thread_rng().fill(&mut unique_id[..]);
 	let exts = vec![
-		NtpExtension {
-			ext_type: UniqueIdentifier,
-			contents: unique_id.clone(),
-		},
-		NtpExtension {
-			ext_type: NTSCookie,
-			contents: state.cookies[0].clone(),
-		},
+		NtpExtension { ext_type: UniqueIdentifier, contents: unique_id.clone() },
+		NtpExtension { ext_type: NTSCookie, contents: state.cookies[0].clone() },
 	];
-	let packet = NtsPacket {
-		header: header,
-		auth_exts: exts,
-		auth_enc_exts: vec![],
-	};
+	let packet = NtsPacket { header, auth_exts: exts, auth_enc_exts: vec![] };
 	socket.connect(addr.unwrap())?;
 	let wire_packet = &serialize_nts_packet::<Aes128SivAead>(packet, &mut send_aead);
 	let t1 = system_to_ntpfloat(SystemTime::now());
@@ -372,11 +360,10 @@ pub fn run_nts_ntp_client(
 	match received {
 		Err(x) => Err(Box::new(x)),
 		Ok(packet) => {
-
 			// check if server response contains the same UniqueIdentifier as client request
 			let resp_unique_id = packet.auth_exts[0].clone().contents;
 			if resp_unique_id != unique_id {
-				return Err(Box::new(InvalidUid));
+				return Err(Box::new(InvalidUid))
 			}
 
 			Ok(NtpResult {
