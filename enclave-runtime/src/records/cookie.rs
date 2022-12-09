@@ -24,12 +24,14 @@ pub struct KeyId(u32);
 
 impl KeyId {
     /// Create `KeyId` from raw `u32`.
+    #[allow(unused)]
     pub fn new(key_id: u32) -> KeyId {
         KeyId(key_id)
     }
 
     /// Create `KeyId` from a `u64` epoch. The 32 most significant bits of the parameter will be
     /// discarded.
+    #[allow(unused)]
     pub fn from_epoch(epoch: u64) -> KeyId {
         // This will discard the 32 most significant bits.
         let epoch_residue = epoch as u32;
@@ -37,16 +39,19 @@ impl KeyId {
     }
 
     /// Create `KeyId` from its representation as a byte array in big endian.
+    #[allow(unused)]
     pub fn from_be_bytes(bytes: [u8; 4]) -> KeyId {
         KeyId(u32::from_be_bytes(bytes))
     }
 
     /// Return the memory representation of this `KeyId` as a byte array in big endian.
+    #[allow(unused)]
     pub fn to_be_bytes(&self) -> [u8; 4] {
         self.0.to_be_bytes()
     }
 }
 
+#[allow(unused)]
 pub const COOKIE_SIZE: usize = 100;
 #[derive(Debug, Copy, Clone)]
 pub struct NTSKeys {
@@ -65,6 +70,7 @@ impl CookieKey {
     ///
     /// There will be an error, if we cannot open the file.
     ///
+    #[allow(unused)]
     pub fn parse(filename: &str) -> Result<CookieKey, io::Error> {
         let mut file = File::open(filename)?;
         let mut buffer = Vec::new();
@@ -74,6 +80,7 @@ impl CookieKey {
     }
 
     /// Return a byte slice of a cookie key content.
+    #[allow(unused)]
     pub fn as_bytes(&self) -> &[u8] {
         self.0.as_slice()
     }
@@ -87,25 +94,7 @@ impl From<&[u8]> for CookieKey {
     }
 }
 
-// pub fn make_cookie(keys: NTSKeys, master_key: &[u8], key_id: KeyId) -> Vec<u8> {
-//     let mut nonce = [0; 16];
-//     rand::thread_rng().fill(&mut nonce);
-//     let mut plaintext = [0; 64];
-//     for i in 0..32 {
-//         plaintext[i] = keys.c2s[i];
-//     }
-//     for i in 0..32 {
-//         plaintext[32 + i] = keys.s2c[i];
-//     }
-//     let mut aead = aead::Aes128SivAead::new(&master_key);
-//     let mut ciphertext = aead.seal(&nonce, &[], &plaintext);
-//     let mut out = Vec::new();
-//     out.extend(&key_id.to_be_bytes());
-//     out.extend(&nonce);
-//     out.append(&mut ciphertext);
-//     return out;
-// }
-
+#[allow(unused)]
 pub fn get_keyid(cookie: &[u8]) -> Option<KeyId> {
     if cookie.len() < 4 {
         None
@@ -114,6 +103,7 @@ pub fn get_keyid(cookie: &[u8]) -> Option<KeyId> {
     }
 }
 
+#[allow(unused)]
 fn unpack(pt: Vec<u8>) -> Option<NTSKeys> {
     if pt.len() != 64 {
         return None;
@@ -130,22 +120,43 @@ fn unpack(pt: Vec<u8>) -> Option<NTSKeys> {
     }
 }
 
-// pub fn eat_cookie(cookie: &[u8], key: &[u8]) -> Option<NTSKeys> {
-//     if cookie.len() < 40 {
-//         return None;
-//     }
-//     let ciphertext = &cookie[4..];
-//     let mut aead = aead::Aes128SivAead::new(&key);
-//     let answer = aead.open(&ciphertext[0..16], &[], &ciphertext[16..]);
-//     match answer {
-//         Err(_) => None,
-//         Ok(buf) => unpack(buf),
-//     }
-// }
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand::Rng;
+    use aes_siv::Aes128SivAead;
+
+    fn make_cookie(keys: NTSKeys, master_key: &[u8], key_id: KeyId) -> Vec<u8> {
+        let mut nonce = [0; 16];
+        rand::thread_rng().fill(&mut nonce);
+        let mut plaintext = [0; 64];
+        for i in 0..32 {
+            plaintext[i] = keys.c2s[i];
+        }
+        for i in 0..32 {
+            plaintext[32 + i] = keys.s2c[i];
+        }
+        let mut aead = aead::Aes128SivAead::new(&master_key);
+        let mut ciphertext = aead.seal(&nonce, &[], &plaintext);
+        let mut out = Vec::new();
+        out.extend(&key_id.to_be_bytes());
+        out.extend(&nonce);
+        out.append(&mut ciphertext);
+        return out;
+    }
+
+    fn eat_cookie(cookie: &[u8], key: &[u8]) -> Option<NTSKeys> {
+        if cookie.len() < 40 {
+            return None;
+        }
+        let ciphertext = &cookie[4..];
+        let mut aead = aead::Aes128SivAead::new(&key);
+        let answer = aead.open(&ciphertext[0..16], &[], &ciphertext[16..]);
+        match answer {
+            Err(_) => None,
+            Ok(buf) => unpack(buf),
+        }
+    }
 
     fn check_eq(a: NTSKeys, b: NTSKeys) {
         for i in 0..32 {

@@ -20,6 +20,7 @@ pub struct PortRecord {
 }
 
 impl PortRecord {
+    #[allow(unused)]
     pub fn new(sender: Party, port: u16) -> PortRecord {
         PortRecord {
             sender,

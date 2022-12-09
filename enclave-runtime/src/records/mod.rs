@@ -49,6 +49,7 @@ pub enum KeRecord {
     Port(PortRecord),
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Copy)]
 pub enum Party {
     Client,
@@ -187,6 +188,7 @@ pub struct ReceivedNtsKeRecordState {
     pub next_port: Option<u16>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub enum NtsKeParseError {
     RecordAfterEnd,

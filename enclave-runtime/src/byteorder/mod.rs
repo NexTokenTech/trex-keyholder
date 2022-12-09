@@ -80,10 +80,6 @@ cases.
 extern crate core;
 
 #[cfg(test)]
-#[macro_use]
-extern crate doc_comment;
-
-#[cfg(test)]
 doctest!("../README.md");
 
 #[cfg(all(feature = "mesalock_sgx", not(target_env = "sgx")))]
@@ -104,6 +100,7 @@ pub use io::{ReadBytesExt, WriteBytesExt};
 // #[cfg(feature = "std")]
 mod io;
 
+#[allow(unused)]
 #[inline]
 fn extend_sign(val: u64, nbytes: usize) -> i64 {
 	let shift = (8 - nbytes) * 8;
@@ -117,6 +114,7 @@ fn extend_sign128(val: u128, nbytes: usize) -> i128 {
 	(val << shift) as i128 >> shift
 }
 
+#[allow(unused)]
 #[inline]
 fn unextend_sign(val: i64, nbytes: usize) -> u64 {
 	let shift = (8 - nbytes) * 8;
@@ -1819,6 +1817,7 @@ impl Default for BigEndian {
 /// A type alias for [`BigEndian`].
 ///
 /// [`BigEndian`]: enum.BigEndian.html
+#[allow(unused)]
 pub type BE = BigEndian;
 
 /// Defines little-endian serialization.
@@ -1849,6 +1848,7 @@ impl Default for LittleEndian {
 /// A type alias for [`LittleEndian`].
 ///
 /// [`LittleEndian`]: enum.LittleEndian.html
+#[allow(unused)]
 pub type LE = LittleEndian;
 
 /// Defines network byte order serialization.
@@ -1875,6 +1875,7 @@ pub type LE = LittleEndian;
 /// ```
 ///
 /// [`BigEndian`]: enum.BigEndian.html
+#[allow(unused)]
 pub type NetworkEndian = BigEndian;
 
 /// Defines system native-endian serialization.
@@ -1886,6 +1887,7 @@ pub type NetworkEndian = BigEndian;
 ///
 /// [`LittleEndian`]: enum.LittleEndian.html
 #[cfg(target_endian = "little")]
+#[allow(unused)]
 pub type NativeEndian = LittleEndian;
 
 /// Defines system native-endian serialization.
@@ -1897,6 +1899,7 @@ pub type NativeEndian = LittleEndian;
 ///
 /// [`BigEndian`]: enum.BigEndian.html
 #[cfg(target_endian = "big")]
+#[allow(unused)]
 pub type NativeEndian = BigEndian;
 
 macro_rules! read_num_bytes {

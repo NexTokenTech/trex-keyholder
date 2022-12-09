@@ -220,6 +220,7 @@ pub fn enclave_account(enclave: &SgxEnclave) -> Result<AccountId32, Error> {
 }
 
 /// Get the remaining heap locations
+#[allow(unused)]
 pub fn get_heap_free_count(
 	enclave: &SgxEnclave
 ) -> Result<usize, Error>{
@@ -238,6 +239,7 @@ pub fn get_heap_free_count(
 }
 
 /// clear heap for uni-test using.
+#[allow(unused)]
 pub fn clear_heap(
 	enclave: &SgxEnclave
 ) -> Result<(), Error>{

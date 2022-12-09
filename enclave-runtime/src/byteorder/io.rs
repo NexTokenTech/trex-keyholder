@@ -1597,6 +1597,7 @@ impl<W: io::Write + ?Sized> WriteBytesExt for W {}
 ///
 /// This function is wildly unsafe because it permits arbitrary modification of
 /// the binary representation of any `Copy` type. Use with care.
+#[allow(unused)]
 unsafe fn slice_to_u8_mut<T: Copy>(slice: &mut [T]) -> &mut [u8] {
     use std::mem::size_of;
 
