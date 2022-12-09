@@ -20,12 +20,6 @@ use sgx_types::{
 };
 
 extern "C" {
-	/// obtain current time from ntp server
-	pub fn ocall_time_ntp(
-		ret_val: *mut sgx_status_t,
-		time: *mut u64
-	) -> sgx_status_t;
-
 	/// init quote, used by remote attestation
 	pub fn ocall_sgx_init_quote(
 		ret_val: *mut sgx_status_t,

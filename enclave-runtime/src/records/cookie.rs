@@ -6,13 +6,9 @@
 // use miscreant::aead::Aead;
 // use rand::Rng;
 use std::{
-    io::{Read, Write},
-    net::TcpStream,
+    io::{Read},
     prelude::v1::*,
-    ptr, slice, str,
-    string::String,
-    sync::Arc,
-    untrusted::fs,
+    str,
     vec::Vec,
 };
 use std::convert::TryInto;

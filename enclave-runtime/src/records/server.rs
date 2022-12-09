@@ -10,13 +10,8 @@ use std::net::Ipv4Addr;
 use std::net::Ipv6Addr;
 use std::str::FromStr;
 use std::{
-    io::{Read, Write},
-    net::TcpStream,
     prelude::v1::*,
-    ptr, slice, str,
     string::String,
-    sync::Arc,
-    untrusted::fs,
     vec::Vec,
 };
 

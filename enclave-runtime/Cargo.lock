@@ -104,7 +104,6 @@ dependencies = [
  "ctr",
  "dbl",
  "digest 0.10.6",
- "sgx_tstd",
  "zeroize",
 ]
 

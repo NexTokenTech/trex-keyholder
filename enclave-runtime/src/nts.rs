@@ -36,7 +36,6 @@ use crate::records::{
 	KnownNextProtocol,
 	NTSKeys,
 	NextProtocolRecord,
-	NtsKeParseError,
 	Party,
 
 	// Structs.
@@ -47,20 +46,15 @@ use crate::records::{
 };
 use log::*;
 use rand::Rng;
-use sgx_tcrypto::*;
-use sgx_tse::*;
-use sgx_types::{SGX_RSA3072_KEY_SIZE, *};
-use sp_core::{blake2_256, Decode, Encode, Pair};
+use sgx_types::*;
 use std::{
 	error::Error,
 	fmt,
 	io::{Read, Write},
 	net::{Shutdown, TcpStream},
-	prelude::v1::*,
-	ptr, slice, str,
+	prelude::v1::*, str,
 	string::String,
 	sync::Arc,
-	untrusted::fs,
 	vec::Vec,
 };
 use webpki;
@@ -78,6 +72,7 @@ use crate::nts_protocol::protocol::{
 };
 
 use aes_siv::{aead::generic_array::GenericArray, Aes128SivAead, KeyInit};
+use tkp_settings::nts::{DEFAULT_NTP_PORT, NTS_HOSTNAME};
 
 use self::NtpClientError::*;
 
@@ -86,6 +81,7 @@ const BUFF_SIZE: usize = 2048;
 pub struct NtpResult {
 	pub stratum: u8,
 	pub time_diff: f64,
+	pub timestamp: u64
 }
 
 #[derive(Debug, Clone)]
@@ -95,11 +91,8 @@ pub enum NtpClientError {
 	InvalidUid,
 }
 
-const DEFAULT_NTP_PORT: u16 = 123;
-const DEFAULT_KE_PORT: u16 = 4460;
 const DEFAULT_SCHEME: u16 = 0;
 const TIMEOUT: Duration = Duration::from_secs(15);
-pub const NTS_HOSTNAME: &'static str = "time.cloudflare.com";
 
 type Cookie = Vec<u8>;
 
@@ -139,6 +132,13 @@ fn system_to_ntpfloat(time: SystemTime) -> f64 {
 	epoch_time.as_secs() as f64 + (epoch_time.subsec_nanos() as f64) / 1.0e9
 }
 
+/// Returns a u64 representing the ntp time since UNIX_EPOCH
+pub fn nts_to_system(time:u64) -> u64 {
+	let unix_offset = Duration::new(UNIX_OFFSET, 0);
+	let epoch_time = unix_offset.as_secs();
+	(time - epoch_time) * 1000
+}
+
 /// Returns a float representing the ntp timestamp
 fn timestamp_to_float(time: u64) -> f64 {
 	let ts_secs = time >> 32;
@@ -161,6 +161,7 @@ pub unsafe extern "C" fn obtain_nts_time() -> sgx_status_t {
 		Ok(result) => {
 			println!("stratum: {:}", result.stratum);
 			println!("offset: {:.6}", result.time_diff);
+			println!("timestamp: {:?}", nts_to_system(result.timestamp));
 		},
 	}
 
@@ -188,6 +189,7 @@ pub fn run_nts_ke_client() -> Result<NtsKeResult, Box<dyn Error>> {
 	let alpn_proto = String::from("ntske/1");
 	let alpn_bytes = alpn_proto.into_bytes();
 	tls_config.set_protocols(&[alpn_bytes]);
+
 	tls_config.root_store.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
 
 	let rc_config = Arc::new(tls_config);
@@ -204,8 +206,8 @@ pub fn run_nts_ke_client() -> Result<NtsKeResult, Box<dyn Error>> {
 	let clientrec = &mut serialize(next_protocol_record);
 	clientrec.append(&mut serialize(aead_record));
 	clientrec.append(&mut serialize(end_record));
-	tls_stream.write(clientrec).unwrap();
-	tls_stream.flush().unwrap();
+	tls_stream.write(clientrec)?;
+	tls_stream.flush()?;
 	let keys = gen_key(tls_stream.sess).unwrap();
 
 	let mut state = ReceivedNtsKeRecordState {
@@ -371,6 +373,7 @@ pub fn run_nts_ntp_client(state: NtsKeResult) -> Result<NtpResult, Box<dyn Error
 				time_diff: ((timestamp_to_float(packet.header.receive_timestamp) - t1)
 					+ (timestamp_to_float(packet.header.transmit_timestamp) - t4))
 					/ 2.0,
+				timestamp: timestamp_to_float(packet.header.transmit_timestamp) as u64
 			})
 		},
 	}

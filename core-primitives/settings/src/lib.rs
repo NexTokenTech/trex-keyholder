@@ -81,3 +81,12 @@ pub mod keyholder {
 	// max size of min heap
 	pub const MIN_HEAP_MAX_SIZE:usize = 8000;
 }
+
+pub mod nts {
+	pub const DEFAULT_NTP_PORT: u16 = 123;
+	pub const DEFAULT_KE_PORT: u16 = 4460;
+	pub const NTS_HOSTNAME: &'static str = "time.cloudflare.com";
+	// Alternate nts server
+	// pub const NTS_HOSTNAME: &'static str = "nts.netnod.se";
+	// pub const NTS_HOSTNAME: &'static str = "virginia.time.system76.com";
+}

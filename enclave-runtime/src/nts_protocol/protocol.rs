@@ -1,10 +1,5 @@
 use std::{
-    net::TcpStream,
     prelude::v1::*,
-    ptr, slice, str,
-    string::String,
-    sync::Arc,
-    untrusted::fs,
     vec::Vec,
 };
 
@@ -13,9 +8,6 @@ use crate::byteorder::{BigEndian,ReadBytesExt, WriteBytesExt};
 use aes_siv::{
     aead::{AeadInPlace,generic_array::GenericArray,},
     siv::IV_SIZE,
-    Aes128SivAead, Nonce,
-    KeyInit,
-    AeadCore
 };
 use rand::Rng;
 // use sgx_rand::*;
@@ -451,7 +443,7 @@ fn decrypt<T: AeadInPlace>(
     ciphertext: &[u8],
 ) -> Result<Vec<u8>, Error> {
     let mut buffer = Vec::from(ciphertext);
-    decryptor.decrypt_in_place(GenericArray::from_slice(nonce), associated_data, &mut buffer);
+    decryptor.decrypt_in_place(GenericArray::from_slice(nonce), associated_data, &mut buffer).unwrap_or(());
     buffer.drain(..IV_SIZE);
     Ok(buffer)
 }

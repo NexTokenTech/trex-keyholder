@@ -27,10 +27,13 @@ use substrate_api_client::{
 use tee_primitives::Enclave;
 
 /// Const str "Tee"
+#[allow(unused)]
 pub const TEE: &str = "Tee";
 /// Const tr "Trex"
+#[allow(unused)]
 pub const TREX: &str = "Trex";
 /// First enclave index,default: 1.
+#[allow(unused)]
 pub const FIRST_ENCLAVE_INDEX: u64 = 1;
 
 /// Node Rpc Api alias
@@ -50,6 +53,7 @@ pub fn get_nonce(who: &AccountId32, config: &Config) -> Result<u32, ApiClientErr
 }
 
 /// Obtain the free balance of the enclave account through rpc
+#[allow(unused)]
 pub fn get_free_balance(who: &AccountId32, config: &Config) -> Result<u128, ApiClientError> {
 	let api = get_api(config).unwrap();
 	// Ok(api.get_account_info(who)?.map_or_else(|| 0, |info| info.nonce))
@@ -64,12 +68,14 @@ pub fn get_genesis_hash(config: &Config) -> Vec<u8> {
 }
 
 /// Obtain the enclave count through rpc
+#[allow(unused)]
 pub fn get_enclave_count(config: &Config, at_block: Option<H256>) -> ApiResult<u64> {
 	let api = get_api(config).unwrap();
 	Ok(api.get_storage_value(TEE, "EnclaveCount", at_block)?.unwrap_or(0u64))
 }
 
 /// Obtain the enclave through rpc
+#[allow(unused)]
 fn enclave(
 	config: &Config,
 	index: u64,
@@ -80,6 +86,7 @@ fn enclave(
 }
 
 /// Obtain the shielding key through enclave
+#[allow(unused)]
 pub fn get_shielding_key(config: &Config) -> ApiResult<(Rsa3072PubKey, AccountId)> {
 	// fetch first registered enclave by rpc
 	let first_enclave = enclave(&config, FIRST_ENCLAVE_INDEX, None).unwrap().unwrap();

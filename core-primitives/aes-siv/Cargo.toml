@@ -25,7 +25,6 @@ ctr = "0.9"
 dbl = "0.3"
 digest = { version = "0.10", features = ["mac"] }
 zeroize = { version = "1", default-features = false }
-sgx_tstd = { version = "1.1.5", git = "https://github.com/apache/incubator-teaclave-sgx-sdk", tag = "v1.1.5" }
 
 # optional dependencies
 pmac = { version = "0.7", optional = true }

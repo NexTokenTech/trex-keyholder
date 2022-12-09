@@ -56,7 +56,6 @@ use utils::{
 		get_shielding_key, TREX,
 	},
 };
-use crate::enclave::ffi::obtain_nts_time;
 
 /// Arguments for the cli.
 #[derive(Parser, Debug)]
@@ -84,7 +83,7 @@ enum Action {
 	SigningPubKey,
 	/// Obtain the balance in the account
 	GetFreeBalance,
-	TestNts
+	TestNts,
 }
 
 /// Seed of signature keypair for testing
@@ -165,8 +164,10 @@ fn main() {
 			};
 			let key_time_hash = key_time.hash();
 			// construct key hash struct for shielding
-			let key_hash =
-				Sha256PrivateKeyHash { aes_private_key: key_piece.clone().to_vec(), hash: key_time_hash };
+			let key_hash = Sha256PrivateKeyHash {
+				aes_private_key: key_piece.clone().to_vec(),
+				hash: key_time_hash,
+			};
 			info!("{:?}", key_hash);
 			let key_hash_encode = key_hash.encode();
 			// shielding key hash struct
@@ -221,9 +222,9 @@ fn main() {
 			let free_balance = get_free_balance(&tee_account_id, &config).unwrap();
 			println!("{:?}", free_balance);
 		},
-		Action::TestNts => unsafe {
-			let res = perform_nts_time(&enclave).unwrap();
-		}
+		Action::TestNts => {
+			perform_nts_time(&enclave).unwrap();
+		},
 	}
 }
 

@@ -20,7 +20,6 @@ use core::ops::Add;
 use dbl::Dbl;
 use digest::{CtOutput, FixedOutputReset, Mac};
 use zeroize::Zeroize;
-use sgx_tstd::println;
 
 #[cfg(feature = "alloc")]
 use alloc::vec::Vec;

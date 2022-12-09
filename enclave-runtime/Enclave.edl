@@ -87,7 +87,6 @@ enclave {
         sgx_status_t ocall_get_update_info([in] sgx_platform_info_t * platformBlob,
                 					   int32_t enclaveTrusted,
                 					   [out] sgx_update_info_bit_t * update_info);
-        sgx_status_t ocall_time_ntp([out] uint64_t* time);
         sgx_status_t ocall_get_nts_socket([out] int *ret_fd);
     };
 };

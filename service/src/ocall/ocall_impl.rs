@@ -21,14 +21,13 @@ extern crate sgx_urts;
 
 use sgx_types::*;
 
-use log::debug;
 use std::{
-	net::{SocketAddr, TcpStream, ToSocketAddrs, UdpSocket},
+	net::{SocketAddr, TcpStream, ToSocketAddrs},
 	os::unix::io::IntoRawFd,
-	str,
-	time::Duration,
+	str
 };
 
+use tkp_settings::nts::{DEFAULT_KE_PORT, NTS_HOSTNAME};
 use sntpc::{self, Error, NtpContext, NtpTimestampGenerator, NtpUdpSocket};
 
 // TODO: move this to config
@@ -206,9 +205,11 @@ pub extern "C" fn ocall_get_update_info(
 
 #[no_mangle]
 pub extern "C" fn ocall_get_nts_socket(ret_fd: *mut c_int) -> sgx_status_t {
-	let port = 4460;
-	let hostname = "time.cloudflare.com";
+	let port = DEFAULT_KE_PORT;
+	// let hostname = "time.cloudflare.com";
+	let hostname= NTS_HOSTNAME;
 	let addr = lookup_ipv4(hostname, port);
+	println!("{:?}",addr);
 	let sock = TcpStream::connect(&addr).expect("[-] Connect tls server failed!");
 
 	unsafe {

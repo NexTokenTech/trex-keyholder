@@ -26,13 +26,9 @@ pub use self::server::*;
 pub use self::port::*;
 
 use std::{
-    io::{Read, Write},
-    net::TcpStream,
     prelude::v1::*,
-    ptr, slice, str,
+    str,
     string::String,
-    sync::Arc,
-    untrusted::fs,
     vec::Vec,
 };
 use std::fmt;
