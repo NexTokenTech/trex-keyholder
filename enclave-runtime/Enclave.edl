@@ -68,6 +68,7 @@ enclave {
                                     [in, size=key_len] const uint8_t* key, size_t key_len,uint64_t release_time,
                                     [out] uint8_t* res
                                 );
+        public sgx_status_t obtain_nts_time();
     };
     untrusted {
     	sgx_status_t ocall_sgx_init_quote([out] sgx_target_info_t *ret_ti,
@@ -86,6 +87,6 @@ enclave {
         sgx_status_t ocall_get_update_info([in] sgx_platform_info_t * platformBlob,
                 					   int32_t enclaveTrusted,
                 					   [out] sgx_update_info_bit_t * update_info);
-        sgx_status_t ocall_time_ntp([out] uint64_t* time);
+        sgx_status_t ocall_get_nts_socket([out] int *ret_fd);
     };
 };

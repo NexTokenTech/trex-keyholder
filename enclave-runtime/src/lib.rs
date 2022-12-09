@@ -47,8 +47,6 @@ extern crate webpki;
 extern crate webpki_roots;
 extern crate yasna;
 
-use crate::ocall::ffi;
-
 use sgx_types::*;
 use std::{
 	cmp::{Ordering, Reverse},
@@ -79,6 +77,10 @@ pub mod error;
 mod hex;
 mod ocall;
 mod utils;
+mod nts;
+mod records;
+mod nts_protocol;
+mod byteorder;
 
 use crate::error::{Error, Result};
 use sp_core::{crypto::Pair, Decode, Encode};
@@ -96,7 +98,7 @@ pub use substrate_api_client::{
 	PlainTipExtrinsicParamsBuilder, SubstrateDefaultSignedExtra, UncheckedExtrinsicV4,
 };
 use tkp_hash::{Sha256PrivateKeyHash, Sha256PrivateKeyTime};
-
+use crate::nts::{run_nts_ke_client,run_nts_ntp_client,nts_to_system};
 lazy_static! {
 	static ref MIN_BINARY_HEAP: Mutex<BinaryHeap<Reverse<KeyPiece>>> =
 		Mutex::new(BinaryHeap::new());
@@ -349,11 +351,7 @@ pub extern "C" fn get_expired_key(
 		*from_block = 0;
 	}
 
-	let mut now_time: u64 = 0;
-	let _res = unsafe {
-		let mut rt: sgx_status_t = sgx_status_t::SGX_ERROR_UNEXPECTED;
-		ffi::ocall_time_ntp(&mut rt as *mut sgx_status_t, &mut now_time);
-	};
+	let now_time: u64 = obtain_nts_time().unwrap();
 	info!("Getting an expired key piece from the enclave queue!");
 	let mut min_heap = MIN_BINARY_HEAP.lock().unwrap();
 	// Check if any key is expired.
@@ -370,6 +368,23 @@ pub extern "C" fn get_expired_key(
 		}
 	}
 	sgx_status_t::SGX_SUCCESS
+}
+
+fn obtain_nts_time() -> Result<u64> {
+	let res = run_nts_ke_client();
+
+	let state = res.unwrap();
+
+	let res = run_nts_ntp_client(state);
+	return match res {
+		Err(err) => {
+			debug!("failure of client: {}", err);
+			Ok(0)
+		},
+		Ok(result) => {
+			Ok(nts_to_system(result.timestamp))
+		},
+	};
 }
 
 /// store nonce in enclave memory

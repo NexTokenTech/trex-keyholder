@@ -30,7 +30,7 @@ use aes_gcm::{
 };
 use clap::Parser;
 use config::Config as ApiConfig;
-use enclave::api::{enclave_account, enclave_init};
+use enclave::api::{enclave_account, enclave_init, perform_nts_time};
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
 #[allow(unused)]
@@ -83,6 +83,7 @@ enum Action {
 	SigningPubKey,
 	/// Obtain the balance in the account
 	GetFreeBalance,
+	TestNts,
 }
 
 /// Seed of signature keypair for testing
@@ -163,8 +164,10 @@ fn main() {
 			};
 			let key_time_hash = key_time.hash();
 			// construct key hash struct for shielding
-			let key_hash =
-				Sha256PrivateKeyHash { aes_private_key: key_piece.clone().to_vec(), hash: key_time_hash };
+			let key_hash = Sha256PrivateKeyHash {
+				aes_private_key: key_piece.clone().to_vec(),
+				hash: key_time_hash,
+			};
 			info!("{:?}", key_hash);
 			let key_hash_encode = key_hash.encode();
 			// shielding key hash struct
@@ -218,6 +221,9 @@ fn main() {
 			// Perform a remote attestation and get an unchecked extrinsic back.
 			let free_balance = get_free_balance(&tee_account_id, &config).unwrap();
 			println!("{:?}", free_balance);
+		},
+		Action::TestNts => {
+			perform_nts_time(&enclave).unwrap();
 		},
 	}
 }

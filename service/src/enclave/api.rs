@@ -106,6 +106,7 @@ pub fn enclave_init() -> SgxResult<SgxEnclave> {
 }
 
 /// Get the remote attestation in the enclave and organize it into ext in the corresponding format of pallet-tee
+#[allow(unused)]
 pub fn perform_ra(
 	enclave: &SgxEnclave,
 	genesis_hash: Vec<u8>,
@@ -156,6 +157,7 @@ pub fn get_shielding_pubkey(enclave: &SgxEnclave) -> Rsa3072PubKey {
 }
 
 /// Put node metadata into enclave memory for temporary storage
+#[allow(unused)]
 pub fn set_node_metadata(enclave: &SgxEnclave, metadata: Vec<u8>) {
 	let mut retval = sgx_status_t::SGX_SUCCESS;
 
@@ -179,6 +181,7 @@ pub fn set_node_metadata(enclave: &SgxEnclave, metadata: Vec<u8>) {
 }
 
 /// Put the nonce of the account into the enclave memory for temporary storage
+#[allow(unused)]
 pub fn set_nonce(enclave: &SgxEnclave, nonce: &u32) {
 	let mut retval = sgx_status_t::SGX_SUCCESS;
 	let result = unsafe { ffi::set_nonce(enclave.geteid(), &mut retval, nonce) };
@@ -194,6 +197,7 @@ pub fn set_nonce(enclave: &SgxEnclave, nonce: &u32) {
 }
 
 /// Get the public signing key of the TEE.
+#[allow(unused)]
 pub fn enclave_account(enclave: &SgxEnclave) -> Result<AccountId32, Error> {
 	let mut retval = sgx_status_t::SGX_SUCCESS;
 	let mut pubkey = [0u8; 32 as usize];
@@ -216,6 +220,7 @@ pub fn enclave_account(enclave: &SgxEnclave) -> Result<AccountId32, Error> {
 }
 
 /// Get the remaining heap locations
+#[allow(unused)]
 pub fn get_heap_free_count(
 	enclave: &SgxEnclave
 ) -> Result<usize, Error>{
@@ -234,6 +239,7 @@ pub fn get_heap_free_count(
 }
 
 /// clear heap for uni-test using.
+#[allow(unused)]
 pub fn clear_heap(
 	enclave: &SgxEnclave
 ) -> Result<(), Error>{
@@ -250,6 +256,7 @@ pub fn clear_heap(
 }
 
 /// Insert private key piece according to the release time
+#[allow(unused)]
 pub fn insert_key_piece(
 	enclave: &SgxEnclave,
 	key: Vec<u8>,
@@ -276,6 +283,7 @@ pub fn insert_key_piece(
 
 /// Get the private key that needs to be released at the time
 /// check if the key piece is expired and extract it from the enclave if so.
+#[allow(unused)]
 pub fn get_expired_key(enclave: &SgxEnclave) -> Option<(Vec<u8>, u32, u32)> {
 	let mut key: Vec<u8> = vec![0u8; AES_KEY_MAX_SIZE];
 	let mut from_block: u32 = 0;
@@ -304,6 +312,7 @@ pub fn get_expired_key(enclave: &SgxEnclave) -> Option<(Vec<u8>, u32, u32)> {
 
 /// The expired key to be released will be constructed as uxt on the chain
 /// generate remote attestation report and construct an unchecked extrinsic which will send by pallet-teerex
+#[allow(unused)]
 pub fn perform_expire_key(
 	enclave: &SgxEnclave,
 	genesis_hash: Vec<u8>,
@@ -343,4 +352,28 @@ pub fn perform_expire_key(
 	}
 
 	Ok(unchecked_extrinsic)
+}
+
+#[allow(unused)]
+pub fn perform_nts_time(
+	enclave: &SgxEnclave
+) -> Result<(), Error> {
+	let mut retval = sgx_status_t::SGX_SUCCESS;
+	let result = unsafe {
+		ffi::obtain_nts_time(
+			enclave.geteid(),
+			&mut retval,
+		)
+	};
+
+	match result {
+		sgx_status_t::SGX_SUCCESS => {
+			println!("ECALL Nts Time Success!");
+		},
+		_ => {
+			println!("[-] ECALL Nts Time Enclave Failed {}!", result.as_str());
+		},
+	}
+
+	Ok(())
 }

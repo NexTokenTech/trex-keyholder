@@ -29,6 +29,7 @@ extern "C" {
 	) -> sgx_status_t;
 
 	/// get pubkey of sp_core key pair from enclave
+	#[allow(unused)]
 	pub fn get_ecc_signing_pubkey(
 		eid: sgx_enclave_id_t,
 		retval: *mut sgx_status_t,
@@ -37,6 +38,7 @@ extern "C" {
 	) -> sgx_status_t;
 
 	/// handle sealed keys on chain, and insert it to the queue
+	#[allow(unused)]
 	pub fn insert_key_piece(
 		eid: sgx_enclave_id_t,
 		retval: *mut sgx_status_t,
@@ -48,6 +50,7 @@ extern "C" {
 	) -> sgx_status_t;
 
 	/// check if the key piece is expired and extract it from the enclave if so.
+	#[allow(unused)]
 	pub fn get_expired_key(
 		eid: sgx_enclave_id_t,
 		retval: *mut sgx_status_t,
@@ -58,6 +61,7 @@ extern "C" {
 	) -> sgx_status_t;
 
 	/// generate remote attestation report and construct an unchecked extrinsic which will send by pallet-teerex
+	#[allow(unused)]
 	pub fn perform_ra(
 		eid: sgx_enclave_id_t,
 		retval: *mut sgx_status_t,
@@ -71,6 +75,7 @@ extern "C" {
 	) -> sgx_status_t;
 
 	/// store nonce in enclave memory
+	#[allow(unused)]
 	pub fn set_nonce(
 		eid: sgx_enclave_id_t,
 		retval: *mut sgx_status_t,
@@ -78,6 +83,7 @@ extern "C" {
 	) -> sgx_status_t;
 
 	/// store node metadata in enclave memory
+	#[allow(unused)]
 	pub fn set_node_metadata(
 		eid: sgx_enclave_id_t,
 		retval: *mut sgx_status_t,
@@ -86,6 +92,7 @@ extern "C" {
 	) -> sgx_status_t;
 
 	/// Construct ext for expired key
+	#[allow(unused)]
 	pub fn perform_expire_key(
 		eid: sgx_enclave_id_t,
 		retval: *mut sgx_status_t,
@@ -113,6 +120,7 @@ extern "C" {
 	) -> sgx_status_t;
 
 	/// test key piece timestamp
+	#[allow(unused)]
 	pub fn test_key_piece(
 		eid: sgx_enclave_id_t,
 		retval: *mut sgx_status_t,
@@ -123,6 +131,7 @@ extern "C" {
 	) -> sgx_status_t;
 
 	/// Get the remaining heap locations
+	#[allow(unused)]
 	pub fn get_heap_free_count(
 		eid: sgx_enclave_id_t,
 		retval: *mut sgx_status_t,
@@ -133,5 +142,10 @@ extern "C" {
 	pub fn clear_heap(
 		eid: sgx_enclave_id_t,
 		retval: *mut sgx_status_t
+	) -> sgx_status_t;
+
+	pub fn obtain_nts_time(
+		eid: sgx_enclave_id_t,
+		retval: *mut sgx_status_t,
 	) -> sgx_status_t;
 }

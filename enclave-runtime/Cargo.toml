@@ -46,6 +46,7 @@ webpki-roots= { git = "https://github.com/mesalock-linux/webpki-roots", branch =
 serde_json = { git = "https://github.com/mesalock-linux/serde-json-sgx" }
 serde = { git = "https://github.com/mesalock-linux/serde-sgx" }
 serde_derive = { git = "https://github.com/mesalock-linux/serde-sgx" }
+rand = { git = "https://github.com/mesalock-linux/rand-sgx" }
 lazy_static = { version = "*", default-features = false, features = ["spin_no_std"] }
 derive_more = { version = "0.99.5" }
 
@@ -67,6 +68,9 @@ sp-application-crypto = { default-features = false, git = "https://github.com/pa
 sp-io = { default-features = false, features = ["disable_oom", "disable_panic_handler", "disable_allocator", "sgx"], path = "../core-primitives/substrate-sgx/sp-io" }
 
 substrate-api-client = { default-features = false, git = "https://github.com/scs/substrate-api-client.git", branch = "polkadot-v0.9.27" }
+
+aes-siv = { path = "../core-primitives/aes-siv"}
+byteorder = { version = "1" , default-features = false}
 
 [dependencies.rustls]
 git = "https://github.com/mesalock-linux/rustls"

@@ -1871,12 +1871,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "no-std-net"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1bcece43b12349917e096cddfa66107277f123e6c96a5aea78711dc601a47152"
-
-[[package]]
 name = "nohash-hasher"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3184,15 +3178,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a507befe795404456341dfab10cef66ead4c041f62b8b11bbb92bffe5d0953e0"
 
 [[package]]
-name = "sntpc"
-version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f89bbd9c220f1b4bc27f94aa4d1cfd0a614b6001955f7c7ce1d818e08f18981b"
-dependencies = [
- "no-std-net",
-]
-
-[[package]]
 name = "sp-api"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.30#a3ed0119c45cdd0d571ad34e5b3ee7518c8cef8d"
@@ -4160,7 +4145,6 @@ dependencies = [
  "sgx_types 1.1.5",
  "sgx_urts",
  "sha2 0.10.6",
- "sntpc",
  "sp-core",
  "sp-runtime",
  "substrate-api-client",

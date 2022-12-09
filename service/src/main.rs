@@ -59,7 +59,7 @@ use utils::{
 	key_piece::TmpKeyPiece
 };
 
-use std::cmp::{min, Ordering, Reverse};
+use std::cmp::{min, Reverse};
 use std::collections::binary_heap::BinaryHeap;
 
 /// Arguments for the Key-holding services.

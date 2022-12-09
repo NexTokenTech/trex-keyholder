@@ -21,88 +21,13 @@ extern crate sgx_urts;
 
 use sgx_types::*;
 
-use log::debug;
 use std::{
-	net::{SocketAddr, TcpStream, ToSocketAddrs, UdpSocket},
+	net::{SocketAddr, TcpStream, ToSocketAddrs},
 	os::unix::io::IntoRawFd,
 	str,
-	time::Duration,
 };
 
-use sntpc::{self, Error, NtpContext, NtpTimestampGenerator, NtpUdpSocket};
-
-// TODO: move this to config
-/// Address and port of ntp server
-#[allow(dead_code)]
-const POOL_NTP_ADDR: &str = "pool.ntp.org:123";
-
-/// Used to initialize the ntp context
-#[derive(Copy, Clone, Default)]
-struct StdTimestampGen {
-	duration: Duration,
-}
-
-/// Implement NtpTimestampGenerator's trait for StdTimestampGen
-impl NtpTimestampGenerator for StdTimestampGen {
-	fn init(&mut self) {
-		self.duration = std::time::SystemTime::now()
-			.duration_since(std::time::SystemTime::UNIX_EPOCH)
-			.unwrap();
-	}
-
-	fn timestamp_sec(&self) -> u64 {
-		self.duration.as_secs()
-	}
-
-	fn timestamp_subsec_micros(&self) -> u32 {
-		self.duration.subsec_micros()
-	}
-}
-
-/// udp socket wrapper
-#[derive(Debug)]
-struct UdpSocketWrapper(UdpSocket);
-
-/// Implement NtpUdpSocket's trait for UdpSocketWrapper
-impl NtpUdpSocket for UdpSocketWrapper {
-	fn send_to<T: ToSocketAddrs>(&self, buf: &[u8], addr: T) -> Result<usize, Error> {
-		match self.0.send_to(buf, addr) {
-			Ok(usize) => Ok(usize),
-			Err(_) => Err(Error::Network),
-		}
-	}
-
-	fn recv_from(&self, buf: &mut [u8]) -> Result<(usize, SocketAddr), Error> {
-		match self.0.recv_from(buf) {
-			Ok((size, addr)) => Ok((size, addr)),
-			Err(_) => Err(Error::Network),
-		}
-	}
-}
-
-/// Obtain ntp time
-#[no_mangle]
-pub unsafe extern "C" fn ocall_time_ntp(time: *mut u64) -> sgx_status_t {
-	let socket = UdpSocket::bind("0.0.0.0:0").expect("Unable to crate UDP socket");
-	socket
-		.set_read_timeout(Some(Duration::from_secs(2)))
-		.expect("Unable to set UDP socket read timeout");
-
-	let sock_wrapper = UdpSocketWrapper(socket);
-	let ntp_context = NtpContext::new(StdTimestampGen::default());
-	let result = sntpc::get_time(POOL_NTP_ADDR, sock_wrapper, ntp_context);
-
-	match result {
-		Ok(cur_time) => {
-			assert_ne!(cur_time.sec(), 0);
-			debug!("Got unix epoch timestamp : {} (sec)", cur_time.sec());
-			// Convert sec timestamp to millisecond timestamp for matching with TREX Moment type.
-			*time = cur_time.sec() as u64 * 1000;
-		},
-		Err(err) => debug!("Err: {:?}", err),
-	}
-	sgx_status_t::SGX_SUCCESS
-}
+use tkp_settings::nts::{DEFAULT_KE_PORT, NTS_HOSTNAME};
 
 /// Ocall: init quote
 #[no_mangle]
@@ -202,4 +127,20 @@ pub extern "C" fn ocall_get_update_info(
 	update_info: *mut sgx_update_info_bit_t,
 ) -> sgx_status_t {
 	unsafe { sgx_report_attestation_status(platform_blob, enclave_trusted, update_info) }
+}
+
+#[no_mangle]
+pub extern "C" fn ocall_get_nts_socket(ret_fd: *mut c_int) -> sgx_status_t {
+	let port = DEFAULT_KE_PORT;
+	// let hostname = "time.cloudflare.com";
+	let hostname = NTS_HOSTNAME;
+	let addr = lookup_ipv4(hostname, port);
+	println!("{:?}", addr);
+	let sock = TcpStream::connect(&addr).expect("[-] Connect tls server failed!");
+
+	unsafe {
+		*ret_fd = sock.into_raw_fd();
+	}
+
+	sgx_status_t::SGX_SUCCESS
 }
