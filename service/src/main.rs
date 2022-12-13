@@ -54,13 +54,17 @@ use trex_runtime::{pallet_trex::Event as TrexEvent, AccountId, BlockNumber, Mome
 use config::Config as ApiConfig;
 use enclave::api::*;
 use utils::{
+	key_piece::TmpKeyPiece,
 	node_metadata::NodeMetadata,
 	node_rpc::{get_api, get_genesis_hash, get_nonce},
-	key_piece::TmpKeyPiece
 };
 
-use std::cmp::{min, Reverse};
-use std::collections::binary_heap::BinaryHeap;
+use std::{
+	cmp::{min, Reverse},
+	collections::binary_heap::BinaryHeap,
+	sync::Arc,
+	time::SystemTime,
+};
 
 /// Arguments for the Key-holding services.
 #[derive(Parser, Debug)]
@@ -78,11 +82,12 @@ type Events = Vec<EventRecord<RuntimeEvent, Hash>>;
 pub type DecodedTREXData = TREXData<AccountId, Moment, BlockNumber>;
 
 /// Main function executed by keyholder
-fn main() {
+#[tokio::main]
+async fn main() {
 	// Setup logging
 	env_logger::init();
 	// init enclave instance
-	let enclave = enclave_init().expect("Cannot create an enclave!");
+	let enclave = Arc::new(enclave_init().expect("Cannot create an enclave!"));
 	// load Config from config.yml
 	let args = Args::parse();
 	let config = ApiConfig::from_yaml(&args.config);
@@ -118,105 +123,115 @@ fn main() {
 
 	// Spawn a thread to listen to the TREX data event.
 	let event_url = config.node_url();
-	let mut handlers = Vec::new();
-	let local_enclave = enclave.clone();
 	let local_tee_account_id = tee_account_id.clone();
 	let local_genesis_hash = genesis_hash.clone();
-	handlers.push(thread::spawn(move || {
-		// Listen to TREXDataSent events.
-		let client = WsRpcClient::new(&event_url);
-		let api = Api::<sr25519::Pair, _, AssetTipExtrinsicParams>::new(client).unwrap();
-		println!("Subscribe to TREX events");
-		let (events_in, events_out) = channel();
-		api.subscribe_events(events_in).unwrap();
-		let timeout = Duration::from_millis(10);
-		// Data that cannot be temporarily stored into the heap
-		let mut key_piece_cache:BinaryHeap<Reverse<TmpKeyPiece>> = BinaryHeap::new();
-		loop {
-			if let Ok(msg) = events_out.recv_timeout(timeout) {
-				match parse_events(msg.clone()) {
-					Ok(events) => {
-						for event in &events {
-							debug!("decoded: {:?}", event.event);
-							match &event.event {
-								// match to trex events.
-								RuntimeEvent::Trex(te) => {
-									debug!(">>>>>>>>>> TREX event: {:?}", te);
-									// match trex data sent event.
-									match &te {
-										TrexEvent::TREXDataSent(_id, byte_data) => {
-											let mut local_bytes = byte_data.as_slice();
-											let trex_data =
-												DecodedTREXData::decode(&mut local_bytes).unwrap();
-											for key_piece in trex_data.key_pieces {
-												if tee_account_id == key_piece.holder {
-													let shielded_key = key_piece.shielded;
-													info!(
-														"Found a shielded key {:X?}",
-														shielded_key.as_slice()
-													);
-													match event.phase {
-														ApplyExtrinsic(ext_index) => {
-															debug!("Decoded Ext Index: {:?}", ext_index);
-															info!("Expect Release Time {}", trex_data.release_time);
-															let tmp_key_piece = TmpKeyPiece{
-																release_time:trex_data.release_time,
-																from_block:trex_data.current_block,
-																key_piece:shielded_key.clone(),
-																ext_index
-															};
-															handle_key_piece(local_enclave.borrow(),tmp_key_piece, &mut key_piece_cache);
-														},
-														_ => {},
-													}
+	// Listen to TREXDataSent events.
+	let client = WsRpcClient::new(&event_url);
+	let api = Api::<sr25519::Pair, _, AssetTipExtrinsicParams>::new(client).unwrap();
+	println!("Subscribe to TREX events");
+	let (events_in, events_out) = channel();
+	api.subscribe_events(events_in).unwrap();
+	let timeout = Duration::from_millis(10);
+	// Data that cannot be temporarily stored into the heap
+	let mut key_piece_cache: BinaryHeap<Reverse<TmpKeyPiece>> = BinaryHeap::new();
+	loop {
+		println!("new loop");
+		if let Ok(msg) = events_out.recv_timeout(timeout) {
+			match parse_events(msg.clone()) {
+				Ok(events) => {
+					for event in &events {
+						debug!("decoded: {:?}", event.event);
+						match &event.event {
+							// match to trex events.
+							RuntimeEvent::Trex(te) => {
+								debug!(">>>>>>>>>> TREX event: {:?}", te);
+								// match trex data sent event.
+								match &te {
+									TrexEvent::TREXDataSent(_id, byte_data) => {
+										println!("<<<<<<<<<<<<<<<<<<<<<<<<<<<<trex data sent");
+										let mut local_bytes = byte_data.as_slice();
+										let trex_data =
+											DecodedTREXData::decode(&mut local_bytes).unwrap();
+										for key_piece in trex_data.key_pieces {
+											if tee_account_id == key_piece.holder {
+												let shielded_key = key_piece.shielded;
+												println!(
+													"Found a shielded key {:X?}",
+													shielded_key.as_slice()
+												);
+												match event.phase {
+													ApplyExtrinsic(ext_index) => {
+														debug!(
+															"Decoded Ext Index: {:?}",
+															ext_index
+														);
+														info!(
+															"Expect Release Time {}",
+															trex_data.release_time
+														);
+														let tmp_key_piece = TmpKeyPiece {
+															release_time: trex_data.release_time,
+															from_block: trex_data.current_block,
+															key_piece: shielded_key.clone(),
+															ext_index,
+														};
+														handle_key_piece(
+															enclave.clone(),
+															tmp_key_piece,
+															&mut key_piece_cache,
+														);
+													},
+													_ => {},
 												}
 											}
-										},
-										_ => {
-											debug!("ignoring unsupported TREX event");
-										},
-									}
-								},
-								_ => debug!("ignoring unsupported module event: {:?}", event.event),
-							}
+										}
+									},
+									_ => {
+										debug!("ignoring unsupported TREX event");
+									},
+								}
+							},
+							_ => debug!("ignoring unsupported module event: {:?}", event.event),
 						}
-					},
-					Err(e) => {
-						println!("{:?}", e)
-					},
-				}
-				// take expired key piece out of the enclave.
-				while let Some((key, block_num, ext_idx) ) = get_expired_key(local_enclave.borrow()) {
-					info!("Get expired key piece: {:X?}", key.as_slice());
-					send_expired_key(
-						&config,
-						local_enclave.borrow(),
-						local_tee_account_id.borrow(),
-						&local_genesis_hash.to_vec(),
-						key,
-						block_num,
-						ext_idx,
-					);
-				}
+					}
+				},
+				Err(e) => {
+					println!("{:?}", e)
+				},
 			}
-			// // match event with trex event
-			// wait 100 ms for next iteration
-			thread::sleep(Duration::from_millis(100));
+			// take expired key piece out of the enclave.
+			while let Some((key, block_num, ext_idx)) = get_expired_key(&enclave.borrow()) {
+				info!("Get expired key piece: {:X?}", key.as_slice());
+				send_expired_key(
+					&config,
+					enclave.clone(),
+					local_tee_account_id.borrow(),
+					&local_genesis_hash.to_vec(),
+					key,
+					block_num,
+					ext_idx,
+				);
+			}
 		}
-	}));
-	// join threads.
-	for handler in handlers {
-		handler.join().expect("The thread being joined has panicked");
+		println!("will sleep");
+		// // match event with trex event
+		// wait 100 ms for next iteration
+		thread::sleep(Duration::from_millis(1000));
 	}
-	enclave.destroy();
+	// enclave.destroy();
 }
 
-fn handle_key_piece(enclave:&SgxEnclave,tmp_key_piece:TmpKeyPiece,key_piece_cache:&mut BinaryHeap<Reverse<TmpKeyPiece>>){
+fn handle_key_piece(
+	enclave: Arc<SgxEnclave>,
+	tmp_key_piece: TmpKeyPiece,
+	key_piece_cache: &mut BinaryHeap<Reverse<TmpKeyPiece>>,
+) {
 	key_piece_cache.push(Reverse(tmp_key_piece));
 	// Get the remaining heap locations
-	let heap_free_count = get_heap_free_count(&enclave).unwrap_or(0);
-	if heap_free_count > 0 && key_piece_cache.len() > 0{
-		let insert_count = min(key_piece_cache.len(),heap_free_count);
+	let heap_free_count = get_heap_free_count(&enclave).unwrap_or(10);
+	println!("heap_free_count~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~{:?}", heap_free_count);
+	if heap_free_count > 0 && key_piece_cache.len() > 0 {
+		let insert_count = min(key_piece_cache.len(), heap_free_count);
 		for _i in 0..insert_count {
 			if let Some(Reverse(item)) = key_piece_cache.peek() {
 				insert_key_piece(
@@ -226,7 +241,7 @@ fn handle_key_piece(enclave:&SgxEnclave,tmp_key_piece:TmpKeyPiece,key_piece_cach
 					item.clone().from_block,
 					item.clone().ext_index,
 				)
-					.expect("Cannot insert shielded key!");
+				.expect("Cannot insert shielded key!");
 				key_piece_cache.pop();
 			}
 		}
@@ -237,13 +252,14 @@ fn handle_key_piece(enclave:&SgxEnclave,tmp_key_piece:TmpKeyPiece,key_piece_cach
 fn parse_events(event: String) -> Result<Events, String> {
 	let _unhex = Vec::from_hex(event).map_err(|_| "Decoding Events Failed".to_string())?;
 	let mut _er_enc = _unhex.as_slice();
+	println!("________________________________{:?}", _er_enc);
 	Events::decode(&mut _er_enc).map_err(|_| "Decoding Events Failed".to_string())
 }
 
 /// Send expired keys to the chain
 fn send_expired_key(
 	config: &ApiConfig,
-	enclave: &SgxEnclave,
+	enclave: Arc<SgxEnclave>,
 	tee_account_id: &AccountId,
 	genesis_hash: &Vec<u8>,
 	expired_key: Vec<u8>,
@@ -266,17 +282,22 @@ fn send_expired_key(
 		NodeMetadata::new(metadata, runtime_spec_version, runtime_transaction_version).encode(),
 	);
 
-	let uxt = perform_expire_key(
-		&enclave,
-		genesis_hash.to_owned(),
-		nonce,
-		expired_key,
-		block_number,
-		ext_index,
-	)
-	.unwrap();
-
-	send_uxt(&config, uxt, XtStatus::SubmitOnly);
+	let task_enclave = enclave.clone();
+	let task_genesis_hash = genesis_hash.clone();
+	let task_config = config.clone();
+	tokio::task::spawn(async move {
+		println!("send utx to chain");
+		let uxt = perform_expire_key(
+			&task_enclave,
+			task_genesis_hash.to_owned(),
+			nonce,
+			expired_key,
+			block_number,
+			ext_index,
+		)
+			.unwrap();
+		send_uxt(&task_config, uxt, XtStatus::SubmitOnly);
+	});
 }
 
 /// Send uxt to chain

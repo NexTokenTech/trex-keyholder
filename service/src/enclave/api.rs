@@ -24,6 +24,7 @@ use sp_core::{crypto::AccountId32, ed25519};
 /// keep this api free from chain-specific types!
 use std::io::{Read, Write};
 use std::{fs::File, path::PathBuf};
+use std::sync::Arc;
 use tkp_settings::{
 	files::{ENCLAVE_FILE, ENCLAVE_TOKEN},
 	keyholder::{KEY_EXT_MAX_SIZE, AES_KEY_MAX_SIZE, RA_EXT_MAX_SIZE},
@@ -233,8 +234,14 @@ pub fn get_heap_free_count(
 			&mut heap_free_count
 		)
 	};
-	ensure!(result == sgx_status_t::SGX_SUCCESS, Error::Sgx(result));
-	ensure!(retval == sgx_status_t::SGX_SUCCESS, Error::Sgx(retval));
+	match result {
+		sgx_status_t::SGX_SUCCESS => {
+			println!("ECALL Get Heap Free Count Success!");
+		},
+		_ => {
+			println!("[-] ECALL Get Heap Free Count Enclave Failed {}!", result.as_str());
+		},
+	}
 	Ok(heap_free_count)
 }
 
@@ -314,7 +321,7 @@ pub fn get_expired_key(enclave: &SgxEnclave) -> Option<(Vec<u8>, u32, u32)> {
 /// generate remote attestation report and construct an unchecked extrinsic which will send by pallet-teerex
 #[allow(unused)]
 pub fn perform_expire_key(
-	enclave: &SgxEnclave,
+	enclave: &Arc<SgxEnclave>,
 	genesis_hash: Vec<u8>,
 	nonce: u32,
 	expired_key: Vec<u8>,
