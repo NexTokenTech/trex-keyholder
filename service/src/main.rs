@@ -65,6 +65,9 @@ use std::{
 	sync::Arc,
 	time::SystemTime,
 };
+use std::thread::sleep;
+use rand::Rng;
+use tokio::task;
 
 /// Arguments for the Key-holding services.
 #[derive(Parser, Debug)]
@@ -121,10 +124,7 @@ async fn main() {
 
 	send_uxt(&config, uxt, XtStatus::Finalized);
 
-	// Spawn a thread to listen to the TREX data event.
 	let event_url = config.node_url();
-	let local_tee_account_id = tee_account_id.clone();
-	let local_genesis_hash = genesis_hash.clone();
 	// Listen to TREXDataSent events.
 	let client = WsRpcClient::new(&event_url);
 	let api = Api::<sr25519::Pair, _, AssetTipExtrinsicParams>::new(client).unwrap();
@@ -133,9 +133,8 @@ async fn main() {
 	api.subscribe_events(events_in).unwrap();
 	let timeout = Duration::from_millis(10);
 	// Data that cannot be temporarily stored into the heap
-	let mut key_piece_cache: BinaryHeap<Reverse<TmpKeyPiece>> = BinaryHeap::new();
+	let mut key_piece_cache:BinaryHeap<Reverse<TmpKeyPiece>> = BinaryHeap::new();
 	loop {
-		println!("new loop");
 		if let Ok(msg) = events_out.recv_timeout(timeout) {
 			match parse_events(msg.clone()) {
 				Ok(events) => {
@@ -148,38 +147,27 @@ async fn main() {
 								// match trex data sent event.
 								match &te {
 									TrexEvent::TREXDataSent(_id, byte_data) => {
-										println!("<<<<<<<<<<<<<<<<<<<<<<<<<<<<trex data sent");
 										let mut local_bytes = byte_data.as_slice();
 										let trex_data =
 											DecodedTREXData::decode(&mut local_bytes).unwrap();
 										for key_piece in trex_data.key_pieces {
 											if tee_account_id == key_piece.holder {
 												let shielded_key = key_piece.shielded;
-												println!(
-													"Found a shielded key {:X?}",
-													shielded_key.as_slice()
-												);
+												info!(
+														"Found a shielded key {:X?}",
+														shielded_key.as_slice()
+													);
 												match event.phase {
 													ApplyExtrinsic(ext_index) => {
-														debug!(
-															"Decoded Ext Index: {:?}",
+														debug!("Decoded Ext Index: {:?}", ext_index);
+														info!("Expect Release Time {}", trex_data.release_time);
+														let tmp_key_piece = TmpKeyPiece{
+															release_time:trex_data.release_time,
+															from_block:trex_data.current_block,
+															key_piece:shielded_key.clone(),
 															ext_index
-														);
-														info!(
-															"Expect Release Time {}",
-															trex_data.release_time
-														);
-														let tmp_key_piece = TmpKeyPiece {
-															release_time: trex_data.release_time,
-															from_block: trex_data.current_block,
-															key_piece: shielded_key.clone(),
-															ext_index,
 														};
-														handle_key_piece(
-															enclave.clone(),
-															tmp_key_piece,
-															&mut key_piece_cache,
-														);
+														handle_key_piece(enclave.clone(),tmp_key_piece, &mut key_piece_cache);
 													},
 													_ => {},
 												}
@@ -196,29 +184,29 @@ async fn main() {
 					}
 				},
 				Err(e) => {
-					println!("{:?}", e)
+					eprintln!("{:?}", e)
 				},
 			}
+			let mut rng = rand::thread_rng();
+			let expired_loop_random: u64 = rng.gen::<u64>();
 			// take expired key piece out of the enclave.
-			while let Some((key, block_num, ext_idx)) = get_expired_key(&enclave.borrow()) {
+			while let Some((key, block_num, ext_idx) ) = get_expired_key(enclave.clone(),expired_loop_random.clone()) {
 				info!("Get expired key piece: {:X?}", key.as_slice());
 				send_expired_key(
 					&config,
 					enclave.clone(),
-					local_tee_account_id.borrow(),
-					&local_genesis_hash.to_vec(),
+					tee_account_id.borrow(),
+					&genesis_hash.to_vec(),
 					key,
 					block_num,
 					ext_idx,
 				);
 			}
 		}
-		println!("will sleep");
 		// // match event with trex event
-		// wait 100 ms for next iteration
-		thread::sleep(Duration::from_millis(1000));
+		// wait 2000 ms for next iteration
+		sleep(Duration::from_millis(2000));
 	}
-	// enclave.destroy();
 }
 
 fn handle_key_piece(
@@ -228,8 +216,7 @@ fn handle_key_piece(
 ) {
 	key_piece_cache.push(Reverse(tmp_key_piece));
 	// Get the remaining heap locations
-	let heap_free_count = get_heap_free_count(&enclave).unwrap_or(10);
-	println!("heap_free_count~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~{:?}", heap_free_count);
+	let heap_free_count = get_heap_free_count(enclave.clone()).unwrap_or(10);
 	if heap_free_count > 0 && key_piece_cache.len() > 0 {
 		let insert_count = min(key_piece_cache.len(), heap_free_count);
 		for _i in 0..insert_count {
@@ -252,7 +239,6 @@ fn handle_key_piece(
 fn parse_events(event: String) -> Result<Events, String> {
 	let _unhex = Vec::from_hex(event).map_err(|_| "Decoding Events Failed".to_string())?;
 	let mut _er_enc = _unhex.as_slice();
-	println!("________________________________{:?}", _er_enc);
 	Events::decode(&mut _er_enc).map_err(|_| "Decoding Events Failed".to_string())
 }
 
@@ -282,20 +268,19 @@ fn send_expired_key(
 		NodeMetadata::new(metadata, runtime_spec_version, runtime_transaction_version).encode(),
 	);
 
-	let task_enclave = enclave.clone();
-	let task_genesis_hash = genesis_hash.clone();
+	let uxt = perform_expire_key(
+		&enclave,
+		genesis_hash.to_owned(),
+		nonce,
+		expired_key,
+		block_number,
+		ext_index,
+	)
+		.unwrap();
+
 	let task_config = config.clone();
-	tokio::task::spawn(async move {
-		println!("send utx to chain");
-		let uxt = perform_expire_key(
-			&task_enclave,
-			task_genesis_hash.to_owned(),
-			nonce,
-			expired_key,
-			block_number,
-			ext_index,
-		)
-			.unwrap();
+	task::spawn(async move{
+		debug!("send utx to chain");
 		send_uxt(&task_config, uxt, XtStatus::SubmitOnly);
 	});
 }

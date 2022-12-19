@@ -223,7 +223,7 @@ pub fn enclave_account(enclave: &SgxEnclave) -> Result<AccountId32, Error> {
 /// Get the remaining heap locations
 #[allow(unused)]
 pub fn get_heap_free_count(
-	enclave: &SgxEnclave
+	enclave: Arc<SgxEnclave>
 ) -> Result<usize, Error>{
 	let mut retval = sgx_status_t::SGX_SUCCESS;
 	let mut heap_free_count:usize = 0;
@@ -291,7 +291,7 @@ pub fn insert_key_piece(
 /// Get the private key that needs to be released at the time
 /// check if the key piece is expired and extract it from the enclave if so.
 #[allow(unused)]
-pub fn get_expired_key(enclave: &SgxEnclave) -> Option<(Vec<u8>, u32, u32)> {
+pub fn get_expired_key(enclave: Arc<SgxEnclave>, loop_tag: u64,) -> Option<(Vec<u8>, u32, u32)> {
 	let mut key: Vec<u8> = vec![0u8; AES_KEY_MAX_SIZE];
 	let mut from_block: u32 = 0;
 	let mut ext_index: u32 = 0;
@@ -302,6 +302,7 @@ pub fn get_expired_key(enclave: &SgxEnclave) -> Option<(Vec<u8>, u32, u32)> {
 			&mut retval,
 			key.as_mut_ptr(),
 			AES_KEY_MAX_SIZE as u32,
+			loop_tag,
 			&mut from_block,
 			&mut ext_index,
 		)
@@ -364,12 +365,14 @@ pub fn perform_expire_key(
 #[allow(unused)]
 pub fn perform_nts_time(
 	enclave: &SgxEnclave
-) -> Result<(), Error> {
+) -> Result<u64, Error> {
 	let mut retval = sgx_status_t::SGX_SUCCESS;
+	let mut cur_time = 0u64;
 	let result = unsafe {
 		ffi::obtain_nts_time(
 			enclave.geteid(),
 			&mut retval,
+			&mut cur_time
 		)
 	};
 
@@ -382,5 +385,5 @@ pub fn perform_nts_time(
 		},
 	}
 
-	Ok(())
+	Ok(cur_time)
 }

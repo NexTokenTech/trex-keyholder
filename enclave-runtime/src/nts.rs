@@ -92,7 +92,7 @@ pub enum NtpClientError {
 }
 
 const DEFAULT_SCHEME: u16 = 0;
-const TIMEOUT: Duration = Duration::from_secs(15);
+const TIMEOUT: Duration = Duration::from_secs(4);
 
 type Cookie = Vec<u8>;
 
@@ -147,7 +147,7 @@ fn timestamp_to_float(time: u64) -> f64 {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn obtain_nts_time() -> sgx_status_t {
+pub extern "C" fn obtain_nts_time(cur_time: *mut u64) -> sgx_status_t {
 	let res = run_nts_ke_client();
 
 	let state = res.unwrap();
@@ -156,12 +156,17 @@ pub unsafe extern "C" fn obtain_nts_time() -> sgx_status_t {
 	match res {
 		Err(err) => {
 			debug!("failure of client: {}", err);
-			// process::exit(1)
+			unsafe{
+				*cur_time = 0
+			}
 		},
 		Ok(result) => {
-			println!("stratum: {:}", result.stratum);
-			println!("offset: {:.6}", result.time_diff);
-			println!("timestamp: {:?}", nts_to_system(result.timestamp));
+			debug!("stratum: {:}", result.stratum);
+			debug!("offset: {:.6}", result.time_diff);
+			debug!("timestamp: {:?}", nts_to_system(result.timestamp));
+			unsafe{
+				*cur_time = nts_to_system(result.timestamp)
+			}
 		},
 	}
 

@@ -223,7 +223,8 @@ fn main() {
 			println!("{:?}", free_balance);
 		},
 		Action::TestNts => {
-			perform_nts_time(&enclave).unwrap();
+			let cur_time = perform_nts_time(&enclave).unwrap_or(0u64);
+			println!("current time is:{:?}",cur_time);
 		},
 	}
 }

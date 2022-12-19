@@ -103,6 +103,8 @@ lazy_static! {
 	static ref MIN_BINARY_HEAP: Mutex<BinaryHeap<Reverse<KeyPiece>>> =
 		Mutex::new(BinaryHeap::new());
 	pub static ref NODE_META_DATA: Mutex<Vec<u8>> = Mutex::new(Vec::<u8>::new());
+	static ref LAST_TIME: Mutex<u64> = Mutex::new(0u64);
+	static ref LAST_LOOP_TAG: Mutex<u64> = Mutex::new(0u64);
 }
 
 struct LocalRsa3072PubKey {
@@ -343,6 +345,7 @@ pub extern "C" fn insert_key_piece(
 pub extern "C" fn get_expired_key(
 	key: *mut u8,
 	key_len: u32,
+	loop_tag: u64,
 	from_block: *mut u32,
 	ext_index: *mut u32,
 ) -> sgx_status_t {
@@ -351,20 +354,36 @@ pub extern "C" fn get_expired_key(
 		*from_block = 0;
 	}
 
-	let now_time: u64 = obtain_nts_time().unwrap();
 	info!("Getting an expired key piece from the enclave queue!");
 	let mut min_heap = MIN_BINARY_HEAP.lock().unwrap();
-	// Check if any key is expired.
-	if let Some(Reverse(v)) = min_heap.peek() {
-		if v.release_time <= now_time {
-			let expired_key = unsafe { slice::from_raw_parts_mut(key, key_len as usize) };
-			write_slice_and_whitespace_pad(expired_key, v.key_piece.clone())
-				.expect("Key buffer is overflown!");
-			unsafe {
-				*from_block = v.from_block;
-				*ext_index = v.ext_index;
+	// if min heap length is 0,do nothing.
+	if min_heap.len() > 0 {
+		let now_time ;
+		let mut old_tag = LAST_LOOP_TAG.lock().unwrap();
+		// if old_tag is not the same as loop_tag,use new time from nts
+		if *old_tag != loop_tag {
+			*old_tag = loop_tag;
+			now_time = obtain_nts_time().unwrap();
+			let mut old_time = LAST_TIME.lock().unwrap();
+			*old_time = now_time;
+		}else { // either,use last time from nts
+			let old_time = LAST_TIME.lock().unwrap();
+			now_time = *old_time;
+		}
+		debug!("{:?}",now_time);
+
+		// Check if any key is expired.
+		if let Some(Reverse(v)) = min_heap.peek() {
+			if v.release_time <= now_time {
+				let expired_key = unsafe { slice::from_raw_parts_mut(key, key_len as usize) };
+				write_slice_and_whitespace_pad(expired_key, v.key_piece.clone())
+					.expect("Key buffer is overflown!");
+				unsafe {
+					*from_block = v.from_block;
+					*ext_index = v.ext_index;
+				}
+				min_heap.pop();
 			}
-			min_heap.pop();
 		}
 	}
 	sgx_status_t::SGX_SUCCESS
