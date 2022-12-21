@@ -345,7 +345,7 @@ pub extern "C" fn insert_key_piece(
 pub extern "C" fn get_expired_key(
 	key: *mut u8,
 	key_len: u32,
-	loop_tag: u64,
+	nts_time: u64,
 	from_block: *mut u32,
 	ext_index: *mut u32,
 ) -> sgx_status_t {
@@ -358,23 +358,9 @@ pub extern "C" fn get_expired_key(
 	let mut min_heap = MIN_BINARY_HEAP.lock().unwrap();
 	// if min heap length is 0,do nothing.
 	if min_heap.len() > 0 {
-		let now_time ;
-		let mut old_tag = LAST_LOOP_TAG.lock().unwrap();
-		// if old_tag is not the same as loop_tag,use new time from nts
-		if *old_tag != loop_tag {
-			*old_tag = loop_tag;
-			now_time = obtain_nts_time().unwrap();
-			let mut old_time = LAST_TIME.lock().unwrap();
-			*old_time = now_time;
-		}else { // either,use last time from nts
-			let old_time = LAST_TIME.lock().unwrap();
-			now_time = *old_time;
-		}
-		debug!("{:?}",now_time);
-
 		// Check if any key is expired.
 		if let Some(Reverse(v)) = min_heap.peek() {
-			if v.release_time <= now_time {
+			if v.release_time <= nts_time {
 				let expired_key = unsafe { slice::from_raw_parts_mut(key, key_len as usize) };
 				write_slice_and_whitespace_pad(expired_key, v.key_piece.clone())
 					.expect("Key buffer is overflown!");
@@ -389,6 +375,7 @@ pub extern "C" fn get_expired_key(
 	sgx_status_t::SGX_SUCCESS
 }
 
+#[allow(unused)]
 fn obtain_nts_time() -> Result<u64> {
 	let res = run_nts_ke_client();
 

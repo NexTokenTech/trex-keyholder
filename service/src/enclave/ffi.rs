@@ -56,7 +56,7 @@ extern "C" {
 		retval: *mut sgx_status_t,
 		key: *mut u8,
 		key_len: u32,
-		loop_tag: u64,
+		nts_time: u64,
 		from_block: *mut u32,
 		ext_index: *mut u32,
 	) -> sgx_status_t;

@@ -42,7 +42,7 @@ use frame_system::EventRecord;
 use frame_system::Phase::ApplyExtrinsic;
 use sgx_urts::SgxEnclave;
 use sp_core::{sr25519, Decode, Encode, H256 as Hash};
-use std::{borrow::Borrow, sync::mpsc::channel, thread, time::Duration};
+use std::{borrow::Borrow, sync::mpsc::channel, time::Duration};
 use substrate_api_client::{
 	rpc::WsRpcClient, utils::FromHexString, Api, AssetTipExtrinsicParams, XtStatus,
 };
@@ -62,12 +62,11 @@ use utils::{
 use std::{
 	cmp::{min, Reverse},
 	collections::binary_heap::BinaryHeap,
-	sync::Arc,
-	time::SystemTime,
+	sync::Arc
 };
-use std::thread::sleep;
-use rand::Rng;
-use tokio::task;
+use std::cell::RefCell;
+use futures::join;
+use async_std::task;
 
 /// Arguments for the Key-holding services.
 #[derive(Parser, Debug)]
@@ -85,7 +84,7 @@ type Events = Vec<EventRecord<RuntimeEvent, Hash>>;
 pub type DecodedTREXData = TREXData<AccountId, Moment, BlockNumber>;
 
 /// Main function executed by keyholder
-#[tokio::main]
+#[async_std::main]
 async fn main() {
 	// Setup logging
 	env_logger::init();
@@ -124,6 +123,12 @@ async fn main() {
 
 	send_uxt(&config, uxt, XtStatus::Finalized);
 
+	// startup event listener and nts time scheduler
+	let nts_time_ref = RefCell::new(0u64);
+	join!(events_listener(&enclave,&config,&tee_account_id,&genesis_hash,&nts_time_ref),nts_time_scheduler(&enclave,&nts_time_ref));
+}
+
+async fn events_listener(enclave:&Arc<SgxEnclave>,config:&ApiConfig,tee_account_id:&AccountId,genesis_hash:&Vec<u8>,nts_time_ref:&RefCell<u64>){
 	let event_url = config.node_url();
 	// Listen to TREXDataSent events.
 	let client = WsRpcClient::new(&event_url);
@@ -151,7 +156,7 @@ async fn main() {
 										let trex_data =
 											DecodedTREXData::decode(&mut local_bytes).unwrap();
 										for key_piece in trex_data.key_pieces {
-											if tee_account_id == key_piece.holder {
+											if tee_account_id.to_owned() == key_piece.holder {
 												let shielded_key = key_piece.shielded;
 												info!(
 														"Found a shielded key {:X?}",
@@ -187,25 +192,35 @@ async fn main() {
 					eprintln!("{:?}", e)
 				},
 			}
-			let mut rng = rand::thread_rng();
-			let expired_loop_random: u64 = rng.gen::<u64>();
-			// take expired key piece out of the enclave.
-			while let Some((key, block_num, ext_idx) ) = get_expired_key(enclave.clone(),expired_loop_random.clone()) {
-				info!("Get expired key piece: {:X?}", key.as_slice());
-				send_expired_key(
-					&config,
-					enclave.clone(),
-					tee_account_id.borrow(),
-					&genesis_hash.to_vec(),
-					key,
-					block_num,
-					ext_idx,
-				);
-			}
 		}
-		// // match event with trex event
-		// wait 2000 ms for next iteration
-		sleep(Duration::from_millis(2000));
+		let nts_time_inner_value = nts_time_ref.clone().into_inner();
+		// take expired key piece out of the enclave.
+		if let Some((key, block_num, ext_idx)) = get_expired_key(enclave.clone(),nts_time_inner_value) {
+			info!("Get expired key piece: {:X?}", key.as_slice());
+			send_expired_key(
+				&config,
+				enclave.clone(),
+				tee_account_id.borrow(),
+				&genesis_hash.to_vec(),
+				key,
+				block_num,
+				ext_idx,
+			);
+		}
+		// wait 1 ms for next iteration
+		task::sleep(Duration::from_millis(1)).await;
+	}
+}
+
+async fn nts_time_scheduler(enclave:&Arc<SgxEnclave>,nts_time_ref:&RefCell<u64>){
+	loop {
+		println!("startup nts time scheduler");
+		let nts_time_inner_value = nts_time_ref.clone().into_inner();
+		let nts_time = perform_nts_time(&enclave).unwrap_or(nts_time_inner_value);
+		if nts_time != 0 {
+			nts_time_ref.replace(nts_time);
+		}
+		task::sleep(Duration::from_secs(3)).await;
 	}
 }
 
@@ -278,11 +293,8 @@ fn send_expired_key(
 	)
 		.unwrap();
 
-	let task_config = config.clone();
-	task::spawn(async move{
-		debug!("send utx to chain");
-		send_uxt(&task_config, uxt, XtStatus::SubmitOnly);
-	});
+	debug!("send utx to chain");
+	send_uxt(&config, uxt, XtStatus::SubmitOnly);
 }
 
 /// Send uxt to chain

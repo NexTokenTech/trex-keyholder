@@ -291,7 +291,7 @@ pub fn insert_key_piece(
 /// Get the private key that needs to be released at the time
 /// check if the key piece is expired and extract it from the enclave if so.
 #[allow(unused)]
-pub fn get_expired_key(enclave: Arc<SgxEnclave>, loop_tag: u64,) -> Option<(Vec<u8>, u32, u32)> {
+pub fn get_expired_key(enclave: Arc<SgxEnclave>, nts_time: u64,) -> Option<(Vec<u8>, u32, u32)> {
 	let mut key: Vec<u8> = vec![0u8; AES_KEY_MAX_SIZE];
 	let mut from_block: u32 = 0;
 	let mut ext_index: u32 = 0;
@@ -302,7 +302,7 @@ pub fn get_expired_key(enclave: Arc<SgxEnclave>, loop_tag: u64,) -> Option<(Vec<
 			&mut retval,
 			key.as_mut_ptr(),
 			AES_KEY_MAX_SIZE as u32,
-			loop_tag,
+			nts_time,
 			&mut from_block,
 			&mut ext_index,
 		)
