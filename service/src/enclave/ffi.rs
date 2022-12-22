@@ -146,6 +146,6 @@ extern "C" {
 
 	pub fn obtain_nts_time(
 		eid: sgx_enclave_id_t,
-		retval: *mut sgx_status_t,
+		retval: *mut sgx_status_t
 	) -> sgx_status_t;
 }

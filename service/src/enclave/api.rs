@@ -24,6 +24,7 @@ use sp_core::{crypto::AccountId32, ed25519};
 /// keep this api free from chain-specific types!
 use std::io::{Read, Write};
 use std::{fs::File, path::PathBuf};
+use std::sync::Arc;
 use tkp_settings::{
 	files::{ENCLAVE_FILE, ENCLAVE_TOKEN},
 	keyholder::{KEY_EXT_MAX_SIZE, AES_KEY_MAX_SIZE, RA_EXT_MAX_SIZE},
@@ -222,7 +223,7 @@ pub fn enclave_account(enclave: &SgxEnclave) -> Result<AccountId32, Error> {
 /// Get the remaining heap locations
 #[allow(unused)]
 pub fn get_heap_free_count(
-	enclave: &SgxEnclave
+	enclave: Arc<SgxEnclave>
 ) -> Result<usize, Error>{
 	let mut retval = sgx_status_t::SGX_SUCCESS;
 	let mut heap_free_count:usize = 0;
@@ -233,8 +234,14 @@ pub fn get_heap_free_count(
 			&mut heap_free_count
 		)
 	};
-	ensure!(result == sgx_status_t::SGX_SUCCESS, Error::Sgx(result));
-	ensure!(retval == sgx_status_t::SGX_SUCCESS, Error::Sgx(retval));
+	match result {
+		sgx_status_t::SGX_SUCCESS => {
+			println!("ECALL Get Heap Free Count Success!");
+		},
+		_ => {
+			println!("[-] ECALL Get Heap Free Count Enclave Failed {}!", result.as_str());
+		},
+	}
 	Ok(heap_free_count)
 }
 
@@ -284,7 +291,7 @@ pub fn insert_key_piece(
 /// Get the private key that needs to be released at the time
 /// check if the key piece is expired and extract it from the enclave if so.
 #[allow(unused)]
-pub fn get_expired_key(enclave: &SgxEnclave) -> Option<(Vec<u8>, u32, u32)> {
+pub fn get_expired_key(enclave: Arc<SgxEnclave>) -> Option<(Vec<u8>, u32, u32)> {
 	let mut key: Vec<u8> = vec![0u8; AES_KEY_MAX_SIZE];
 	let mut from_block: u32 = 0;
 	let mut ext_index: u32 = 0;
@@ -299,9 +306,13 @@ pub fn get_expired_key(enclave: &SgxEnclave) -> Option<(Vec<u8>, u32, u32)> {
 			&mut ext_index,
 		)
 	};
-	if retval != sgx_status_t::SGX_SUCCESS || res != sgx_status_t::SGX_SUCCESS {
-		info!("[-] ECALL Get Key Failed {}!", res.as_str());
-		return None
+	match res {
+		sgx_status_t::SGX_SUCCESS => {
+			debug!("ECALL Get Key Success!");
+		},
+		_ => {
+			debug!("[-] ECALL Get Key Enclave Failed {}!", res.as_str());
+		},
 	}
 	if from_block > 0 {
 		Some((key, from_block, ext_index))
@@ -314,7 +325,7 @@ pub fn get_expired_key(enclave: &SgxEnclave) -> Option<(Vec<u8>, u32, u32)> {
 /// generate remote attestation report and construct an unchecked extrinsic which will send by pallet-teerex
 #[allow(unused)]
 pub fn perform_expire_key(
-	enclave: &SgxEnclave,
+	enclave: &Arc<SgxEnclave>,
 	genesis_hash: Vec<u8>,
 	nonce: u32,
 	expired_key: Vec<u8>,
@@ -355,14 +366,14 @@ pub fn perform_expire_key(
 }
 
 #[allow(unused)]
-pub fn perform_nts_time(
+pub async fn perform_nts_time(
 	enclave: &SgxEnclave
 ) -> Result<(), Error> {
 	let mut retval = sgx_status_t::SGX_SUCCESS;
 	let result = unsafe {
 		ffi::obtain_nts_time(
 			enclave.geteid(),
-			&mut retval,
+			&mut retval
 		)
 	};
 
