@@ -146,33 +146,6 @@ fn timestamp_to_float(time: u64) -> f64 {
 	(ts_secs as f64) + (ts_frac as f64) / TWO_POW_32
 }
 
-#[no_mangle]
-pub extern "C" fn obtain_nts_time(cur_time: *mut u64) -> sgx_status_t {
-	let res = run_nts_ke_client();
-
-	let state = res.unwrap();
-
-	let res = run_nts_ntp_client(state);
-	match res {
-		Err(err) => {
-			debug!("failure of client: {}", err);
-			unsafe{
-				*cur_time = 0
-			}
-		},
-		Ok(result) => {
-			debug!("stratum: {:}", result.stratum);
-			debug!("offset: {:.6}", result.time_diff);
-			debug!("timestamp: {:?}", nts_to_system(result.timestamp));
-			unsafe{
-				*cur_time = nts_to_system(result.timestamp)
-			}
-		},
-	}
-
-	sgx_status_t::SGX_SUCCESS
-}
-
 pub fn run_nts_ke_client() -> Result<NtsKeResult, Box<dyn Error>> {
 	let mut rt: sgx_status_t = sgx_status_t::SGX_ERROR_UNEXPECTED;
 	// (1.5) get sigrl

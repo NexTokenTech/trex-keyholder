@@ -64,7 +64,6 @@ use std::{
 	collections::binary_heap::BinaryHeap,
 	sync::Arc
 };
-use std::cell::RefCell;
 use futures::join;
 use async_std::task;
 
@@ -124,8 +123,7 @@ async fn main() {
 	send_uxt(&config, uxt, XtStatus::Finalized);
 
 	// startup event listener and nts time scheduler
-	let nts_time_ref = RefCell::new(0u64);
-	join!(events_listener(&enclave,&config,&tee_account_id),nts_time_scheduler(&enclave,&nts_time_ref),pop_keys(&enclave,&config,&tee_account_id,&genesis_hash,&nts_time_ref));
+	join!(events_listener(&enclave,&config,&tee_account_id),nts_time_scheduler(&enclave),pop_keys(&enclave,&config,&tee_account_id,&genesis_hash));
 }
 
 async fn events_listener(enclave:&Arc<SgxEnclave>,config:&ApiConfig,tee_account_id:&AccountId){
@@ -198,11 +196,10 @@ async fn events_listener(enclave:&Arc<SgxEnclave>,config:&ApiConfig,tee_account_
 	}
 }
 
-async fn pop_keys(enclave:&Arc<SgxEnclave>,config:&ApiConfig,tee_account_id:&AccountId,genesis_hash:&Vec<u8>,nts_time_ref:&RefCell<u64>){
+async fn pop_keys(enclave:&Arc<SgxEnclave>,config:&ApiConfig,tee_account_id:&AccountId,genesis_hash:&Vec<u8>){
 	loop {
-		let nts_time_inner_value = nts_time_ref.clone().into_inner();
 		// take expired key piece out of the enclave.
-		if let Some((key, block_num, ext_idx)) = get_expired_key(enclave.clone(),nts_time_inner_value) {
+		if let Some((key, block_num, ext_idx)) = get_expired_key(enclave.clone()) {
 			info!("Get expired key piece: {:X?}", key.as_slice());
 			send_expired_key(
 				&config,
@@ -218,14 +215,10 @@ async fn pop_keys(enclave:&Arc<SgxEnclave>,config:&ApiConfig,tee_account_id:&Acc
 	}
 }
 
-async fn nts_time_scheduler(enclave:&Arc<SgxEnclave>,nts_time_ref:&RefCell<u64>){
+async fn nts_time_scheduler(enclave:&Arc<SgxEnclave>){
 	loop {
 		println!("startup nts time scheduler");
-		let nts_time_inner_value = nts_time_ref.clone().into_inner();
-		let nts_time = perform_nts_time(&enclave).await.unwrap_or(nts_time_inner_value);
-		if nts_time != 0 {
-			nts_time_ref.replace(nts_time);
-		}
+		perform_nts_time(&enclave).await.expect("perform nts time failed");
 		task::sleep(Duration::from_secs(3)).await;
 	}
 }

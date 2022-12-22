@@ -58,6 +58,7 @@ use std::{
 	string::String,
 	sync::SgxMutex as Mutex,
 	vec::Vec,
+	cell::RefCell,
 };
 
 use sgx_crypto_helper::{
@@ -103,9 +104,9 @@ lazy_static! {
 	static ref MIN_BINARY_HEAP: Mutex<BinaryHeap<Reverse<KeyPiece>>> =
 		Mutex::new(BinaryHeap::new());
 	pub static ref NODE_META_DATA: Mutex<Vec<u8>> = Mutex::new(Vec::<u8>::new());
-	static ref LAST_TIME: Mutex<u64> = Mutex::new(0u64);
-	static ref LAST_LOOP_TAG: Mutex<u64> = Mutex::new(0u64);
+	// pub static ref LAST_TIME: Mutex<u64> = Mutex::new(0u64);
 }
+pub static mut LAST_TIME:RefCell<u64> = RefCell::new(0u64);
 
 struct LocalRsa3072PubKey {
 	pub n: [u8; SGX_RSA3072_KEY_SIZE],
@@ -155,16 +156,16 @@ pub unsafe extern "C" fn get_rsa_encryption_pubkey(
 	let key_json_str = match SgxFile::open(KEYFILE) {
 		Ok(mut f) => match f.read_to_end(&mut key_vec) {
 			Ok(len) => {
-				println!("Read {} bytes from Key file", len);
+				debug!("Read {} bytes from Key file", len);
 				std::str::from_utf8(&key_vec).unwrap()
 			},
 			Err(x) => {
-				println!("Read keyfile failed {}", x);
+				debug!("Read keyfile failed {}", x);
 				return sgx_status_t::SGX_ERROR_UNEXPECTED
 			},
 		},
 		Err(x) => {
-			println!("get_sealed_pcl_key cannot open keyfile, please check if key is provisioned successfully! {}", x);
+			debug!("get_sealed_pcl_key cannot open keyfile, please check if key is provisioned successfully! {}", x);
 			return sgx_status_t::SGX_ERROR_UNEXPECTED
 		},
 	};
@@ -317,7 +318,7 @@ pub extern "C" fn insert_key_piece(
 				ext_index,
 			};
 			min_heap.push(Reverse(ext_item));
-			println!("min heap length:{:?}", min_heap.len());
+			debug!("min heap length:{:?}", min_heap.len());
 		}
 	}
 	sgx_status_t::SGX_SUCCESS
@@ -345,7 +346,6 @@ pub extern "C" fn insert_key_piece(
 pub extern "C" fn get_expired_key(
 	key: *mut u8,
 	key_len: u32,
-	nts_time: u64,
 	from_block: *mut u32,
 	ext_index: *mut u32,
 ) -> sgx_status_t {
@@ -353,13 +353,16 @@ pub extern "C" fn get_expired_key(
 	unsafe {
 		*from_block = 0;
 	}
-
 	info!("Getting an expired key piece from the enclave queue!");
 	let mut min_heap = MIN_BINARY_HEAP.lock().unwrap();
 	// if min heap length is 0,do nothing.
 	if min_heap.len() > 0 {
 		// Check if any key is expired.
 		if let Some(Reverse(v)) = min_heap.peek() {
+			let mut nts_time = 0u64;
+			unsafe {
+				nts_time = LAST_TIME.clone().into_inner();
+			}
 			if v.release_time <= nts_time {
 				let expired_key = unsafe { slice::from_raw_parts_mut(key, key_len as usize) };
 				write_slice_and_whitespace_pad(expired_key, v.key_piece.clone())
@@ -375,22 +378,41 @@ pub extern "C" fn get_expired_key(
 	sgx_status_t::SGX_SUCCESS
 }
 
-#[allow(unused)]
-fn obtain_nts_time() -> Result<u64> {
+/// obtain time from nts server,then store it in enclave memory.
+/// # Example
+/// ```
+/// let mut retval = sgx_status_t::SGX_SUCCESS;
+/// 	let result = unsafe {
+/// 		ffi::obtain_nts_time(
+/// 			enclave.geteid(),
+/// 			&mut retval
+/// 		)
+/// 	};
+/// ```
+#[no_mangle]
+pub extern "C" fn obtain_nts_time() -> sgx_status_t {
 	let res = run_nts_ke_client();
 
 	let state = res.unwrap();
 
 	let res = run_nts_ntp_client(state);
-	return match res {
+	match res {
 		Err(err) => {
 			debug!("failure of client: {}", err);
-			Ok(0)
 		},
 		Ok(result) => {
-			Ok(nts_to_system(result.timestamp))
+			debug!("stratum: {:}", result.stratum);
+			debug!("offset: {:.6}", result.time_diff);
+			debug!("timestamp: {:?}", nts_to_system(result.timestamp));
+			let nts_time = nts_to_system(result.timestamp);
+			unsafe {
+				LAST_TIME.replace(nts_time);
+			}
+			debug!("{:?}",nts_time);
 		},
-	};
+	}
+
+	sgx_status_t::SGX_SUCCESS
 }
 
 /// store nonce in enclave memory
@@ -462,13 +484,18 @@ pub unsafe extern "C" fn set_node_metadata(
 ///	let mut ext_index: u32 = 0;
 ///	let mut retval = sgx_status_t::SGX_SUCCESS;
 ///	let res = unsafe {
-///		ffi::get_expired_key(
+///		ffi::perform_expired_key(
 ///			enclave.geteid(),
 ///			&mut retval,
-///			key.as_mut_ptr(),
-///			AES_KEY_MAX_SIZE as u32,
-///			&mut from_block,
-///			&mut ext_index,
+///			genesis_hash.as_ptr(),
+///			genesis_hash.len() as u32,
+///			&nonce,
+///			expired_key.as_ptr(),
+///			expired_key.len() as u32,
+///			&block_number,
+///			&ext_index,
+///			unchecked_extrinsic.as_mut_ptr(),
+///			unchecked_extrinsic.len() as u32,
 ///		)
 ///	};
 /// ```

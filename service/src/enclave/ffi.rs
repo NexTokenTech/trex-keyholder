@@ -56,7 +56,6 @@ extern "C" {
 		retval: *mut sgx_status_t,
 		key: *mut u8,
 		key_len: u32,
-		nts_time: u64,
 		from_block: *mut u32,
 		ext_index: *mut u32,
 	) -> sgx_status_t;
@@ -147,7 +146,6 @@ extern "C" {
 
 	pub fn obtain_nts_time(
 		eid: sgx_enclave_id_t,
-		retval: *mut sgx_status_t,
-		cur_time: *mut u64
+		retval: *mut sgx_status_t
 	) -> sgx_status_t;
 }

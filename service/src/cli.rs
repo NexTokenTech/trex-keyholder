@@ -224,8 +224,7 @@ async fn main() {
 			println!("{:?}", free_balance);
 		},
 		Action::TestNts => {
-			let cur_time = perform_nts_time(&enclave).await.unwrap_or(0u64);
-			println!("current time is:{:?}",cur_time);
+			perform_nts_time(&enclave).await.unwrap();
 		},
 	}
 }

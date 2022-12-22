@@ -291,7 +291,7 @@ pub fn insert_key_piece(
 /// Get the private key that needs to be released at the time
 /// check if the key piece is expired and extract it from the enclave if so.
 #[allow(unused)]
-pub fn get_expired_key(enclave: Arc<SgxEnclave>, nts_time: u64,) -> Option<(Vec<u8>, u32, u32)> {
+pub fn get_expired_key(enclave: Arc<SgxEnclave>) -> Option<(Vec<u8>, u32, u32)> {
 	let mut key: Vec<u8> = vec![0u8; AES_KEY_MAX_SIZE];
 	let mut from_block: u32 = 0;
 	let mut ext_index: u32 = 0;
@@ -302,14 +302,17 @@ pub fn get_expired_key(enclave: Arc<SgxEnclave>, nts_time: u64,) -> Option<(Vec<
 			&mut retval,
 			key.as_mut_ptr(),
 			AES_KEY_MAX_SIZE as u32,
-			nts_time,
 			&mut from_block,
 			&mut ext_index,
 		)
 	};
-	if retval != sgx_status_t::SGX_SUCCESS || res != sgx_status_t::SGX_SUCCESS {
-		info!("[-] ECALL Get Key Failed {}!", res.as_str());
-		return None
+	match res {
+		sgx_status_t::SGX_SUCCESS => {
+			debug!("ECALL Get Key Success!");
+		},
+		_ => {
+			debug!("[-] ECALL Get Key Enclave Failed {}!", res.as_str());
+		},
 	}
 	if from_block > 0 {
 		Some((key, from_block, ext_index))
@@ -365,14 +368,12 @@ pub fn perform_expire_key(
 #[allow(unused)]
 pub async fn perform_nts_time(
 	enclave: &SgxEnclave
-) -> Result<u64, Error> {
+) -> Result<(), Error> {
 	let mut retval = sgx_status_t::SGX_SUCCESS;
-	let mut cur_time = 0u64;
 	let result = unsafe {
 		ffi::obtain_nts_time(
 			enclave.geteid(),
-			&mut retval,
-			&mut cur_time
+			&mut retval
 		)
 	};
 
@@ -385,5 +386,5 @@ pub async fn perform_nts_time(
 		},
 	}
 
-	Ok(cur_time)
+	Ok(())
 }
