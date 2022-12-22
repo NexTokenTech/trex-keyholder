@@ -106,7 +106,7 @@ lazy_static! {
 	pub static ref NODE_META_DATA: Mutex<Vec<u8>> = Mutex::new(Vec::<u8>::new());
 	// pub static ref LAST_TIME: Mutex<u64> = Mutex::new(0u64);
 }
-pub static mut LAST_TIME:RefCell<u64> = RefCell::new(0u64);
+pub static mut NTS_TIME:RefCell<u64> = RefCell::new(0u64);
 
 struct LocalRsa3072PubKey {
 	pub n: [u8; SGX_RSA3072_KEY_SIZE],
@@ -361,7 +361,7 @@ pub extern "C" fn get_expired_key(
 		if let Some(Reverse(v)) = min_heap.peek() {
 			let mut nts_time = 0u64;
 			unsafe {
-				nts_time = LAST_TIME.clone().into_inner();
+				nts_time = NTS_TIME.clone().into_inner();
 			}
 			if v.release_time <= nts_time {
 				let expired_key = unsafe { slice::from_raw_parts_mut(key, key_len as usize) };
@@ -406,7 +406,7 @@ pub extern "C" fn obtain_nts_time() -> sgx_status_t {
 			debug!("timestamp: {:?}", nts_to_system(result.timestamp));
 			let nts_time = nts_to_system(result.timestamp);
 			unsafe {
-				LAST_TIME.replace(nts_time);
+				NTS_TIME.replace(nts_time);
 			}
 			debug!("{:?}",nts_time);
 		},

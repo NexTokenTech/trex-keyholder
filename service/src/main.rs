@@ -133,6 +133,7 @@ async fn events_listener(enclave:&Arc<SgxEnclave>,config:&ApiConfig,tee_account_
 	let api = Api::<sr25519::Pair, _, AssetTipExtrinsicParams>::new(client).unwrap();
 	println!("Subscribe to TREX events");
 	let (events_in, events_out) = channel();
+	// TODO: move to async
 	api.subscribe_events(events_in).unwrap();
 	let timeout = Duration::from_millis(10);
 	// Data that cannot be temporarily stored into the heap
@@ -304,6 +305,7 @@ fn send_uxt(config: &ApiConfig, uxt: Vec<u8>, exit_on: XtStatus) {
 
 	debug!("Generated EXT");
 	debug!("[>] Send the extrinsic");
+	// TODO: move to async
 	let register_enclave_xt_hash = api.send_extrinsic(xthex, exit_on).unwrap();
 	let exit_on_status = match exit_on {
 		XtStatus::SubmitOnly => "submitted",
