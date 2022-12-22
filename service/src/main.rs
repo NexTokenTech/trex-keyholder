@@ -125,10 +125,10 @@ async fn main() {
 
 	// startup event listener and nts time scheduler
 	let nts_time_ref = RefCell::new(0u64);
-	join!(events_listener(&enclave,&config,&tee_account_id,&genesis_hash,&nts_time_ref),nts_time_scheduler(&enclave,&nts_time_ref));
+	join!(events_listener(&enclave,&config,&tee_account_id),nts_time_scheduler(&enclave,&nts_time_ref),pop_keys(&enclave,&config,&tee_account_id,&genesis_hash,&nts_time_ref));
 }
 
-async fn events_listener(enclave:&Arc<SgxEnclave>,config:&ApiConfig,tee_account_id:&AccountId,genesis_hash:&Vec<u8>,nts_time_ref:&RefCell<u64>){
+async fn events_listener(enclave:&Arc<SgxEnclave>,config:&ApiConfig,tee_account_id:&AccountId){
 	let event_url = config.node_url();
 	// Listen to TREXDataSent events.
 	let client = WsRpcClient::new(&event_url);
@@ -193,6 +193,13 @@ async fn events_listener(enclave:&Arc<SgxEnclave>,config:&ApiConfig,tee_account_
 				},
 			}
 		}
+		// wait 100 ms for next iteration
+		task::sleep(Duration::from_millis(100)).await;
+	}
+}
+
+async fn pop_keys(enclave:&Arc<SgxEnclave>,config:&ApiConfig,tee_account_id:&AccountId,genesis_hash:&Vec<u8>,nts_time_ref:&RefCell<u64>){
+	loop {
 		let nts_time_inner_value = nts_time_ref.clone().into_inner();
 		// take expired key piece out of the enclave.
 		if let Some((key, block_num, ext_idx)) = get_expired_key(enclave.clone(),nts_time_inner_value) {
@@ -207,7 +214,6 @@ async fn events_listener(enclave:&Arc<SgxEnclave>,config:&ApiConfig,tee_account_
 				ext_idx,
 			);
 		}
-		// wait 1 ms for next iteration
 		task::sleep(Duration::from_millis(1)).await;
 	}
 }
@@ -216,7 +222,7 @@ async fn nts_time_scheduler(enclave:&Arc<SgxEnclave>,nts_time_ref:&RefCell<u64>)
 	loop {
 		println!("startup nts time scheduler");
 		let nts_time_inner_value = nts_time_ref.clone().into_inner();
-		let nts_time = perform_nts_time(&enclave).unwrap_or(nts_time_inner_value);
+		let nts_time = perform_nts_time(&enclave).await.unwrap_or(nts_time_inner_value);
 		if nts_time != 0 {
 			nts_time_ref.replace(nts_time);
 		}

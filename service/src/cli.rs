@@ -102,7 +102,8 @@ const KEY_SIZE: usize = 32;
 const AES_NONCE: &[u8; 12] = b"unique nonce";
 
 /// Main function executed by cli
-fn main() {
+#[async_std::main]
+async fn main() {
 	// Setup logging
 	env_logger::init();
 	// init enclave instance
@@ -223,7 +224,7 @@ fn main() {
 			println!("{:?}", free_balance);
 		},
 		Action::TestNts => {
-			let cur_time = perform_nts_time(&enclave).unwrap_or(0u64);
+			let cur_time = perform_nts_time(&enclave).await.unwrap_or(0u64);
 			println!("current time is:{:?}",cur_time);
 		},
 	}

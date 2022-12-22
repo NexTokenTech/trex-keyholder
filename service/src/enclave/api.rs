@@ -363,7 +363,7 @@ pub fn perform_expire_key(
 }
 
 #[allow(unused)]
-pub fn perform_nts_time(
+pub async fn perform_nts_time(
 	enclave: &SgxEnclave
 ) -> Result<u64, Error> {
 	let mut retval = sgx_status_t::SGX_SUCCESS;
