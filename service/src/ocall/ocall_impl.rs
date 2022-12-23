@@ -135,7 +135,6 @@ pub extern "C" fn ocall_get_nts_socket(ret_fd: *mut c_int) -> sgx_status_t {
 	// let hostname = "time.cloudflare.com";
 	let hostname = NTS_HOSTNAME;
 	let addr = lookup_ipv4(hostname, port);
-	println!("{:?}", addr);
 	let sock = TcpStream::connect(&addr).expect("[-] Connect tls server failed!");
 
 	unsafe {

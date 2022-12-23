@@ -29,6 +29,7 @@ use tkp_settings::{
 	files::{ENCLAVE_FILE, ENCLAVE_TOKEN},
 	keyholder::{KEY_EXT_MAX_SIZE, AES_KEY_MAX_SIZE, RA_EXT_MAX_SIZE},
 };
+use async_std::io::Result as IoResult;
 
 /// init enclave
 pub fn enclave_init() -> SgxResult<SgxEnclave> {
@@ -368,7 +369,7 @@ pub fn perform_expire_key(
 #[allow(unused)]
 pub async fn perform_nts_time(
 	enclave: &SgxEnclave
-) -> Result<(), Error> {
+) -> IoResult<()> {
 	let mut retval = sgx_status_t::SGX_SUCCESS;
 	let result = unsafe {
 		ffi::obtain_nts_time(
@@ -385,6 +386,5 @@ pub async fn perform_nts_time(
 			println!("[-] ECALL Nts Time Enclave Failed {}!", result.as_str());
 		},
 	}
-
 	Ok(())
 }

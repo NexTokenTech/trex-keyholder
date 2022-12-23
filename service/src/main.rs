@@ -64,8 +64,10 @@ use std::{
 	collections::binary_heap::BinaryHeap,
 	sync::Arc
 };
+use std::sync::mpsc::{Receiver, RecvTimeoutError};
 use futures::join;
 use async_std::task;
+use async_std::io::Result as IoResult;
 
 /// Arguments for the Key-holding services.
 #[derive(Parser, Debug)]
@@ -120,7 +122,7 @@ async fn main() {
 	let uxt =
 		perform_ra(&enclave, genesis_hash.clone(), nonce, trusted_url.as_bytes().to_vec()).unwrap();
 
-	send_uxt(&config, uxt, XtStatus::Finalized);
+	send_uxt(&config, uxt, XtStatus::Finalized).await.expect("send remote attestation failed!");
 
 	// startup event listener and nts time scheduler
 	join!(events_listener(&enclave,&config,&tee_account_id),nts_time_scheduler(&enclave),pop_keys(&enclave,&config,&tee_account_id,&genesis_hash));
@@ -135,11 +137,10 @@ async fn events_listener(enclave:&Arc<SgxEnclave>,config:&ApiConfig,tee_account_
 	let (events_in, events_out) = channel();
 	// TODO: move to async
 	api.subscribe_events(events_in).unwrap();
-	let timeout = Duration::from_millis(10);
 	// Data that cannot be temporarily stored into the heap
 	let mut key_piece_cache:BinaryHeap<Reverse<TmpKeyPiece>> = BinaryHeap::new();
 	loop {
-		if let Ok(msg) = events_out.recv_timeout(timeout) {
+		if let Ok(msg) = event_receiver(&events_out).await {
 			match parse_events(msg.clone()) {
 				Ok(events) => {
 					for event in &events {
@@ -210,9 +211,10 @@ async fn pop_keys(enclave:&Arc<SgxEnclave>,config:&ApiConfig,tee_account_id:&Acc
 				key,
 				block_num,
 				ext_idx,
-			);
+			).await.expect("send expired key failed");
+		}else{
+			task::sleep(Duration::from_millis(1)).await;
 		}
-		task::sleep(Duration::from_millis(1)).await;
 	}
 }
 
@@ -250,6 +252,15 @@ fn handle_key_piece(
 	}
 }
 
+async fn event_receiver(event_out:&Receiver<String>) -> Result<String,RecvTimeoutError> {
+	let timeout = Duration::from_millis(10);
+	let res = match event_out.recv_timeout(timeout) {
+		Ok(msg) => Ok(msg),
+		Err(error) => Err(error)
+	};
+	res
+}
+
 /// Parse the monitored events
 fn parse_events(event: String) -> Result<Events, String> {
 	let _unhex = Vec::from_hex(event).map_err(|_| "Decoding Events Failed".to_string())?;
@@ -258,7 +269,7 @@ fn parse_events(event: String) -> Result<Events, String> {
 }
 
 /// Send expired keys to the chain
-fn send_expired_key(
+async fn send_expired_key(
 	config: &ApiConfig,
 	enclave: Arc<SgxEnclave>,
 	tee_account_id: &AccountId,
@@ -266,7 +277,7 @@ fn send_expired_key(
 	expired_key: Vec<u8>,
 	block_number: u32,
 	ext_index: u32,
-) {
+) -> IoResult<()>{
 	let api = get_api(&config).unwrap();
 
 	// ------------------------------------------------------------------------
@@ -294,11 +305,12 @@ fn send_expired_key(
 		.unwrap();
 
 	debug!("send utx to chain");
-	send_uxt(&config, uxt, XtStatus::SubmitOnly);
+	send_uxt(&config, uxt, XtStatus::SubmitOnly).await?;
+	Ok(())
 }
 
 /// Send uxt to chain
-fn send_uxt(config: &ApiConfig, uxt: Vec<u8>, exit_on: XtStatus) {
+async fn send_uxt(config: &ApiConfig, uxt: Vec<u8>, exit_on: XtStatus) -> IoResult<()>{
 	let api = get_api(&config).unwrap();
 	let mut xthex = hex::encode(uxt);
 	xthex.insert_str(0, "0x");
@@ -314,4 +326,5 @@ fn send_uxt(config: &ApiConfig, uxt: Vec<u8>, exit_on: XtStatus) {
 		_ => "",
 	};
 	debug!("[<] Extrinsic got {:?}. Hash: {:?}\n", exit_on_status, register_enclave_xt_hash);
+	Ok(())
 }
