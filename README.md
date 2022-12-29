@@ -59,3 +59,18 @@ in the TEE on-chain runtime data so that clients can request the shielding key.
 ```shell
 RUST_LOG=info ./cli -c ../service/src/config.yml shielding-pub-key
 ```
+
+## How to run the docker setup
+### Prerequisite
+In case you also build the worker directly, without docker (e.g. on a dev machine, running make), you should run make clean before running the docker build. Otherwise, it can occasionally lead to build errors.
+
+### Building the Docker containers
+```shell
+docker build -t key-holder:${TAG} .
+```
+
+### Running the docker
+```shell
+docker run -v ${LOCAL_PATH}:${CONTAINER_PATH} key-holder:latest -c ${CONTAINER_PATH}
+```
+
