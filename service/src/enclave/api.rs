@@ -24,6 +24,7 @@ use sp_core::{crypto::AccountId32, ed25519};
 /// keep this api free from chain-specific types!
 use std::io::{Read, Write};
 use std::{fs::File, path::PathBuf};
+use std::sync::Arc;
 use tkp_settings::{
 	files::{ENCLAVE_FILE, ENCLAVE_TOKEN},
 	keyholder::{KEY_EXT_MAX_SIZE, AES_KEY_MAX_SIZE, RA_EXT_MAX_SIZE},
@@ -108,7 +109,7 @@ pub fn enclave_init() -> SgxResult<SgxEnclave> {
 /// Get the remote attestation in the enclave and organize it into ext in the corresponding format of pallet-tee
 #[allow(unused)]
 pub fn perform_ra(
-	enclave: &SgxEnclave,
+	enclave: &Arc<SgxEnclave>,
 	genesis_hash: Vec<u8>,
 	nonce: u32,
 	w_url: Vec<u8>,
@@ -140,7 +141,7 @@ pub fn perform_ra(
 
 /// get shielding pubkey from enclave
 #[allow(unused)]
-pub fn get_shielding_pubkey(enclave: &SgxEnclave) -> Rsa3072PubKey {
+pub fn get_shielding_pubkey(enclave: &Arc<SgxEnclave>) -> Rsa3072PubKey {
 	let mut pubkey = [0u8; SGX_RSA3072_KEY_SIZE + SGX_RSA3072_PUB_EXP_SIZE];
 	let mut retval = sgx_status_t::SGX_SUCCESS;
 	unsafe {
@@ -158,7 +159,7 @@ pub fn get_shielding_pubkey(enclave: &SgxEnclave) -> Rsa3072PubKey {
 
 /// Put node metadata into enclave memory for temporary storage
 #[allow(unused)]
-pub fn set_node_metadata(enclave: &SgxEnclave, metadata: Vec<u8>) {
+pub fn set_node_metadata(enclave: &Arc<SgxEnclave>, metadata: Vec<u8>) {
 	let mut retval = sgx_status_t::SGX_SUCCESS;
 
 	let result = unsafe {
@@ -182,7 +183,7 @@ pub fn set_node_metadata(enclave: &SgxEnclave, metadata: Vec<u8>) {
 
 /// Put the nonce of the account into the enclave memory for temporary storage
 #[allow(unused)]
-pub fn set_nonce(enclave: &SgxEnclave, nonce: &u32) {
+pub fn set_nonce(enclave: &Arc<SgxEnclave>, nonce: &u32) {
 	let mut retval = sgx_status_t::SGX_SUCCESS;
 	let result = unsafe { ffi::set_nonce(enclave.geteid(), &mut retval, nonce) };
 	match result {
@@ -198,7 +199,7 @@ pub fn set_nonce(enclave: &SgxEnclave, nonce: &u32) {
 
 /// Get the public signing key of the TEE.
 #[allow(unused)]
-pub fn enclave_account(enclave: &SgxEnclave) -> Result<AccountId32, Error> {
+pub fn enclave_account(enclave: &Arc<SgxEnclave>) -> Result<AccountId32, Error> {
 	let mut retval = sgx_status_t::SGX_SUCCESS;
 	let mut pubkey = [0u8; 32 as usize];
 
@@ -222,7 +223,7 @@ pub fn enclave_account(enclave: &SgxEnclave) -> Result<AccountId32, Error> {
 /// Get the remaining heap locations
 #[allow(unused)]
 pub fn get_heap_free_count(
-	enclave: &SgxEnclave
+	enclave: &Arc<SgxEnclave>
 ) -> Result<usize, Error>{
 	let mut retval = sgx_status_t::SGX_SUCCESS;
 	let mut heap_free_count:usize = 0;
@@ -258,7 +259,7 @@ pub fn clear_heap(
 /// Insert private key piece according to the release time
 #[allow(unused)]
 pub fn insert_key_piece(
-	enclave: &SgxEnclave,
+	enclave: &Arc<SgxEnclave>,
 	key: Vec<u8>,
 	release_time: u64,
 	current_block: u32,
@@ -284,7 +285,7 @@ pub fn insert_key_piece(
 /// Get the private key that needs to be released at the time
 /// check if the key piece is expired and extract it from the enclave if so.
 #[allow(unused)]
-pub fn get_expired_key(enclave: &SgxEnclave) -> Option<(Vec<u8>, u32, u32)> {
+pub fn get_expired_key(enclave: &Arc<SgxEnclave>) -> Option<(Vec<u8>, u32, u32)> {
 	let mut key: Vec<u8> = vec![0u8; AES_KEY_MAX_SIZE];
 	let mut from_block: u32 = 0;
 	let mut ext_index: u32 = 0;
@@ -314,7 +315,7 @@ pub fn get_expired_key(enclave: &SgxEnclave) -> Option<(Vec<u8>, u32, u32)> {
 /// generate remote attestation report and construct an unchecked extrinsic which will send by pallet-teerex
 #[allow(unused)]
 pub fn perform_expire_key(
-	enclave: &SgxEnclave,
+	enclave: &Arc<SgxEnclave>,
 	genesis_hash: Vec<u8>,
 	nonce: u32,
 	expired_key: Vec<u8>,
@@ -356,7 +357,7 @@ pub fn perform_expire_key(
 
 #[allow(unused)]
 pub fn perform_nts_time(
-	enclave: &SgxEnclave
+	enclave: &Arc<SgxEnclave>
 ) -> Result<(), Error> {
 	let mut retval = sgx_status_t::SGX_SUCCESS;
 	let result = unsafe {

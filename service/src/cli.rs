@@ -39,7 +39,7 @@ use sp_core::{
 	crypto::{AccountId32 as AccountId, Ss58Codec},
 	sr25519, Encode, Pair,
 };
-use std::{sync::Arc, time::SystemTime};
+use std::{sync::Arc, time::SystemTime, fs::File, io::prelude::* };
 use substrate_api_client::{
 	compose_extrinsic_offline, ExtrinsicParams, PlainTipExtrinsicParams,
 	PlainTipExtrinsicParamsBuilder, XtStatus,
@@ -214,6 +214,9 @@ fn main() {
 		Action::SigningPubKey => {
 			let tee_account_id = enclave_account(&enclave).unwrap();
 			println!("Enclave account {:} ", &tee_account_id.to_ss58check());
+			let tee_account_ss58 = tee_account_id.to_ss58check();
+			let mut file = File::create("tee_account_id.txt").unwrap();
+			file.write_all(tee_account_ss58.as_bytes()).expect("error to write to tee_account_id.txt");
 		},
 		Action::GetFreeBalance => {
 			// Get the account ID of our TEE.
