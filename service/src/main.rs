@@ -208,7 +208,7 @@ fn main() {
 	}));
 	handlers.push(thread::spawn(move || {
 		loop {
-			info!("excute popkey loop");
+			info!("execute pop-key loop");
 			// take expired key piece out of the enclave.
 			if let Some((key, block_num, ext_idx)) = get_expired_key(pop_key_enclave.borrow()) {
 				info!("Get expired key piece: {:X?}", key.as_slice());
@@ -225,7 +225,7 @@ fn main() {
 		}
 	}));
 	handlers.push(thread::spawn(move || loop {
-		info!("stratup nts time scheduler");
+		info!("start up nts time scheduler");
 		perform_nts_time(&enclave).expect("perform nts time failed");
 		sleep(Duration::from_secs(3));
 	}));
