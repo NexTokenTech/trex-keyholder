@@ -52,7 +52,8 @@ use std::{
 	fmt,
 	io::{Read, Write},
 	net::{Shutdown, TcpStream},
-	prelude::v1::*, str,
+	prelude::v1::*,
+	str,
 	string::String,
 	sync::Arc,
 	vec::Vec,
@@ -81,7 +82,7 @@ const BUFF_SIZE: usize = 2048;
 pub struct NtpResult {
 	pub stratum: u8,
 	pub time_diff: f64,
-	pub timestamp: u64
+	pub timestamp: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -133,7 +134,7 @@ fn system_to_ntpfloat(time: SystemTime) -> f64 {
 }
 
 /// Returns a u64 representing the ntp time since UNIX_EPOCH
-pub fn nts_to_system(time:u64) -> u64 {
+pub fn nts_to_system(time: u64) -> u64 {
 	let unix_offset = Duration::new(UNIX_OFFSET, 0);
 	let epoch_time = unix_offset.as_secs();
 	(time - epoch_time) * 1000
@@ -144,28 +145,6 @@ fn timestamp_to_float(time: u64) -> f64 {
 	let ts_secs = time >> 32;
 	let ts_frac = time - (ts_secs << 32);
 	(ts_secs as f64) + (ts_frac as f64) / TWO_POW_32
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn obtain_nts_time() -> sgx_status_t {
-	let res = run_nts_ke_client();
-
-	let state = res.unwrap();
-
-	let res = run_nts_ntp_client(state);
-	match res {
-		Err(err) => {
-			debug!("failure of client: {}", err);
-			// process::exit(1)
-		},
-		Ok(result) => {
-			println!("stratum: {:}", result.stratum);
-			println!("offset: {:.6}", result.time_diff);
-			println!("timestamp: {:?}", nts_to_system(result.timestamp));
-		},
-	}
-
-	sgx_status_t::SGX_SUCCESS
 }
 
 pub fn run_nts_ke_client() -> Result<NtsKeResult, Box<dyn Error>> {
@@ -373,7 +352,7 @@ pub fn run_nts_ntp_client(state: NtsKeResult) -> Result<NtpResult, Box<dyn Error
 				time_diff: ((timestamp_to_float(packet.header.receive_timestamp) - t1)
 					+ (timestamp_to_float(packet.header.transmit_timestamp) - t4))
 					/ 2.0,
-				timestamp: timestamp_to_float(packet.header.transmit_timestamp) as u64
+				timestamp: timestamp_to_float(packet.header.transmit_timestamp) as u64,
 			})
 		},
 	}

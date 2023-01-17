@@ -56,7 +56,7 @@ use std::{
 	sgxfs::SgxFile,
 	slice,
 	string::String,
-	sync::SgxMutex as Mutex,
+	sync::{SgxMutex as Mutex, SgxRwLock as RwLock},
 	vec::Vec,
 };
 
@@ -71,16 +71,16 @@ use std::str;
 
 /// Related implementation methods of remote attestation in enclave
 pub mod attestation;
+mod byteorder;
 mod cert;
 /// A specialized Error type and Result type in enclave.
 pub mod error;
 mod hex;
-mod ocall;
-mod utils;
 mod nts;
-mod records;
 mod nts_protocol;
-mod byteorder;
+mod ocall;
+mod records;
+mod utils;
 
 use crate::error::{Error, Result};
 use sp_core::{crypto::Pair, Decode, Encode};
@@ -90,7 +90,10 @@ use tkp_sgx_crypto::{ed25519, Ed25519Seal};
 use tkp_sgx_io::StaticSealedIO;
 use utils::node_metadata::NodeMetadata;
 // use for rpc
-use crate::attestation::hash_from_slice;
+use crate::{
+	attestation::hash_from_slice,
+	nts::{nts_to_system, run_nts_ke_client, run_nts_ntp_client},
+};
 use sgx_tcrypto::rsgx_sha256_slice;
 use sp_core::blake2_256;
 pub use substrate_api_client::{
@@ -98,11 +101,11 @@ pub use substrate_api_client::{
 	PlainTipExtrinsicParamsBuilder, SubstrateDefaultSignedExtra, UncheckedExtrinsicV4,
 };
 use tkp_hash::{Sha256PrivateKeyHash, Sha256PrivateKeyTime};
-use crate::nts::{run_nts_ke_client,run_nts_ntp_client,nts_to_system};
 lazy_static! {
 	static ref MIN_BINARY_HEAP: Mutex<BinaryHeap<Reverse<KeyPiece>>> =
 		Mutex::new(BinaryHeap::new());
 	pub static ref NODE_META_DATA: Mutex<Vec<u8>> = Mutex::new(Vec::<u8>::new());
+	pub static ref NTS_TIME: RwLock<u64> = RwLock::new(0u64);
 }
 
 struct LocalRsa3072PubKey {
@@ -222,6 +225,47 @@ pub unsafe extern "C" fn get_ecc_signing_pubkey(pubkey: *mut u8, pubkey_size: u3
 	sgx_status_t::SGX_SUCCESS
 }
 
+/// get heap free count
+/// # Example
+/// ```
+/// let mut retval = sgx_status_t::SGX_SUCCESS;
+/// 	let mut heap_free_count:usize = 0;
+/// 	let result = unsafe {
+/// 		ffi::get_heap_free_count(
+/// 			enclave.geteid(),
+/// 			&mut retval,
+/// 			&mut heap_free_count
+/// 		)
+/// 	};
+/// ```
+#[no_mangle]
+pub extern "C" fn get_heap_free_count(heap_free_count: *mut usize) -> sgx_status_t {
+	let min_heap = MIN_BINARY_HEAP.lock().unwrap();
+	let free_count = MIN_HEAP_MAX_SIZE - min_heap.len();
+	unsafe {
+		*heap_free_count = free_count;
+	}
+	sgx_status_t::SGX_SUCCESS
+}
+
+/// clear heap
+/// # Example
+/// ```
+/// let mut retval = sgx_status_t::SGX_SUCCESS;
+/// 	let result = unsafe {
+/// 		ffi::clear_heap(
+/// 			enclave.geteid(),
+/// 			&mut retval
+/// 		)
+/// 	};
+/// ```
+#[no_mangle]
+pub extern "C" fn clear_heap() -> sgx_status_t {
+	let mut min_heap = MIN_BINARY_HEAP.lock().unwrap();
+	min_heap.clear();
+	sgx_status_t::SGX_SUCCESS
+}
+
 /// handle sealed keys on chain, and insert it to the queue
 /// # Example
 /// ```
@@ -238,25 +282,6 @@ pub unsafe extern "C" fn get_ecc_signing_pubkey(pubkey: *mut u8, pubkey_size: u3
 ///		)
 ///	};
 /// ```
-#[no_mangle]
-pub extern "C" fn get_heap_free_count(
-	heap_free_count: *mut usize
-) -> sgx_status_t {
-	let min_heap = MIN_BINARY_HEAP.lock().unwrap();
-	let free_count = MIN_HEAP_MAX_SIZE - min_heap.len();
-	unsafe {
-		*heap_free_count = free_count;
-	}
-	sgx_status_t::SGX_SUCCESS
-}
-
-#[no_mangle]
-pub extern  "C" fn clear_heap() -> sgx_status_t{
-	let mut min_heap = MIN_BINARY_HEAP.lock().unwrap();
-	min_heap.clear();
-	sgx_status_t::SGX_SUCCESS
-}
-
 #[no_mangle]
 pub extern "C" fn insert_key_piece(
 	key: *const u8,
@@ -351,7 +376,7 @@ pub extern "C" fn get_expired_key(
 		*from_block = 0;
 	}
 
-	let now_time: u64 = obtain_nts_time().unwrap();
+	let now_time: u64 = *NTS_TIME.read().unwrap(); //obtain_nts_time().unwrap();
 	info!("Getting an expired key piece from the enclave queue!");
 	let mut min_heap = MIN_BINARY_HEAP.lock().unwrap();
 	// Check if any key is expired.
@@ -370,21 +395,39 @@ pub extern "C" fn get_expired_key(
 	sgx_status_t::SGX_SUCCESS
 }
 
-fn obtain_nts_time() -> Result<u64> {
+/// obtain time from nts server
+/// # Example
+/// ```
+/// let mut retval = sgx_status_t::SGX_SUCCESS;
+/// 	let result = unsafe {
+/// 		ffi::obtain_nts_time(
+/// 			enclave.geteid(),
+/// 			&mut retval,
+/// 		)
+/// 	};
+/// ```
+#[no_mangle]
+pub unsafe extern "C" fn obtain_nts_time() -> sgx_status_t {
 	let res = run_nts_ke_client();
 
 	let state = res.unwrap();
 
 	let res = run_nts_ntp_client(state);
-	return match res {
+	match res {
 		Err(err) => {
 			debug!("failure of client: {}", err);
-			Ok(0)
+			// process::exit(1)
 		},
 		Ok(result) => {
-			Ok(nts_to_system(result.timestamp))
+			println!("stratum: {:}", result.stratum);
+			println!("offset: {:.6}", result.time_diff);
+			println!("timestamp: {:?}", nts_to_system(result.timestamp));
+			let mut w = NTS_TIME.write().unwrap();
+			*w = nts_to_system(result.timestamp);
 		},
-	};
+	}
+
+	sgx_status_t::SGX_SUCCESS
 }
 
 /// store nonce in enclave memory
@@ -451,20 +494,26 @@ pub unsafe extern "C" fn set_node_metadata(
 /// Construct ext for expired key
 /// # Example
 /// ```
-/// let mut key: Vec<u8> = vec![0u8; AES_KEY_MAX_SIZE];
-///	let mut from_block: u32 = 0;
-///	let mut ext_index: u32 = 0;
-///	let mut retval = sgx_status_t::SGX_SUCCESS;
-///	let res = unsafe {
-///		ffi::get_expired_key(
-///			enclave.geteid(),
-///			&mut retval,
-///			key.as_mut_ptr(),
-///			AES_KEY_MAX_SIZE as u32,
-///			&mut from_block,
-///			&mut ext_index,
-///		)
-///	};
+/// 	let mut retval = sgx_status_t::SGX_SUCCESS;
+///
+///		let unchecked_extrinsic_size = KEY_EXT_MAX_SIZE;
+/// 	let mut unchecked_extrinsic: Vec<u8> = vec![0u8; unchecked_extrinsic_size as usize];
+///
+/// 	let result = unsafe {
+/// 		ffi::perform_expire_key(
+/// 			enclave.geteid(),
+/// 			&mut retval,
+/// 			genesis_hash.as_ptr(),
+/// 			genesis_hash.len() as u32,
+/// 			&nonce,
+/// 			expired_key.as_ptr(),
+/// 			expired_key.len() as u32,
+/// 			&block_number,
+/// 			&ext_index,
+/// 			unchecked_extrinsic.as_mut_ptr(),
+/// 			unchecked_extrinsic.len() as u32,
+/// 		)
+/// 	};
 /// ```
 #[no_mangle]
 pub unsafe extern "C" fn perform_expire_key(
