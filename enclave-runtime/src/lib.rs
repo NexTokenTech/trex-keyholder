@@ -587,7 +587,7 @@ pub unsafe extern "C" fn perform_expire_key(
 	#[allow(clippy::redundant_clone)]
 	let xt = compose_extrinsic_offline!(
 		signer,
-		(call, expired_key_slice.to_vec(), block_number as u32, ext_index as u32),
+		(call, expired_key_slice.to_vec(), *block_number as u32, *ext_index as u32),
 		extrinsic_params
 	);
 

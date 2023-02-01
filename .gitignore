@@ -19,3 +19,4 @@
 /bin/trex-keyholder
 /bin/cli
 /bin/ed25519_key_sealed.bin
+/bin/tee_account_id.txt
