@@ -30,10 +30,20 @@ RUST_LOG=info ./trex-keyholder -c ../service/src/config.yml
 The default configuration file is included within the source code, and you may use other configuration 
 based on the environment and requirements.
 
+## Unit Test
+A number of unit tests cover the core functions around the enclave, the enclave runtime library needs to be built first 
+before running the unit test. 
+
+Since the makefile only build release binary, the cargo test shall use release mode. Use the following scripts to run unit tests.
+```shell
+make
+cargo test --release
+```
+
 ## CLI tool
 A CLI tool is built to provide utilities for testing and basic operations.
-### Dev Test
-The dev test function uses a well-know account for testing purpose. The well-known seed is in the 
+### Runtime API Test
+The dev test function uses a well-know account for testing purpose in runtime. The well-known seed is in the 
 local yaml file "seed.yml" for testing and dev purposes.
 Use below command to initialize and send a TREX data for test.
 ```shell

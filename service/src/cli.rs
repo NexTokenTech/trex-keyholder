@@ -22,8 +22,11 @@ mod enclave;
 mod ocall;
 /// Some utils for service
 mod utils;
+/// test
+mod test;
 
 use crate::enclave::api::get_shielding_pubkey;
+use crate::test::utils::test_release_time;
 use aes_gcm::{
 	aead::{rand_core::RngCore, Aead, KeyInit, OsRng},
 	Aes256Gcm, Nonce,
@@ -39,7 +42,7 @@ use sp_core::{
 	crypto::{AccountId32 as AccountId, Ss58Codec},
 	sr25519, Encode, Pair,
 };
-use std::{fs::File, sync::Arc, time::SystemTime, io::Write};
+use std::{fs::File, sync::Arc, io::Write};
 use substrate_api_client::{
 	compose_extrinsic_offline, ExtrinsicParams, PlainTipExtrinsicParams,
 	PlainTipExtrinsicParamsBuilder, XtStatus,
@@ -56,6 +59,7 @@ use utils::{
 		get_shielding_key, TREX,
 	},
 };
+use crate::test::primitive::consts::{AES_NONCE, KEY_SIZE};
 
 /// Arguments for the cli.
 #[derive(Parser, Debug)]
@@ -93,13 +97,6 @@ struct Seed {
 	#[serde(with = "hex::serde")]
 	hex: Vec<u8>,
 }
-
-/// One minute in milliseconds.
-const ONE_MINUTE: u64 = 60 * 1000;
-/// Size of aes key
-const KEY_SIZE: usize = 32;
-/// AES NONCE: This nonce must be 12 bytes long.
-const AES_NONCE: &[u8; 12] = b"unique nonce";
 
 /// Main function executed by cli
 fn main() {
@@ -157,7 +154,7 @@ fn main() {
 			first.copy_from_slice(&key_slice);
 			second.copy_from_slice(nonce_slice);
 			// generate hash of Sha256PrivateKeyTime which contains key_piece and release_time
-			let release_time = release_time();
+			let release_time = test_release_time();
 			let key_time = Sha256PrivateKeyTime {
 				aes_private_key: key_piece.clone().to_vec(),
 				timestamp: release_time.clone(),
@@ -230,25 +227,6 @@ fn main() {
 			perform_nts_time(&enclave).unwrap();
 		},
 	}
-}
-
-/// Release time: take the current time and push it back 60s
-fn release_time() -> u64 {
-	let now = SystemTime::now();
-	let mut now_time: u64 = 0;
-	match now.duration_since(SystemTime::UNIX_EPOCH) {
-		Ok(elapsed) => {
-			// it prints '2'
-			println!("{}", elapsed.as_secs());
-			now_time = elapsed.as_secs();
-		},
-		Err(e) => {
-			// an error occurred!
-			println!("Error: {:?}", e);
-		},
-	};
-	// convert to milliseconds!
-	now_time * 1000 + ONE_MINUTE
 }
 
 // TODO: consolidate with the same method in enclave-runtime.
