@@ -15,28 +15,40 @@
 
 */
 use crate::{
+	config::Config as ApiConfig,
 	enclave::{
-		api::{enclave_init, get_shielding_pubkey},
+		api::{
+			clear_heap, enclave_init, get_heap_free_count, get_shielding_pubkey, insert_key_piece,
+		},
 		ffi,
 	},
-	test::primitive::consts::{
-		TEST_CIPHER, TEST_CONFIG_PATH, TEST_KEY_PIECE, TEST_KEY_SLICE, TEST_NONCE_SLICE,ONE_DAY
+	test::{
+		primitive::consts::{
+			AES_NONCE, KEY_SIZE, ONE_DAY, TEST_CIPHER, TEST_KEY_PIECE, TEST_KEY_SLICE,
+			TEST_NONCE_SLICE,
+		},
+		utils::test_release_time,
 	},
-	utils::node_rpc::get_shielding_key,
-	utils::key_piece::TmpKeyPiece
+	utils::{key_piece::TmpKeyPiece, node_rpc::get_shielding_key},
 };
 use aes_gcm::{
 	aead::{rand_core::RngCore, Aead, KeyInit, OsRng},
 	Aes256Gcm, Nonce,
 };
+use codec::Encode;
 use log::info;
 use sgx_types::sgx_status_t;
 use sgx_urts::SgxEnclave;
-use tkp_settings::keyholder::{AES_KEY_MAX_SIZE,MIN_HEAP_MAX_SIZE};
+use std::{
+	cmp::{min, Ordering, Reverse},
+	collections::binary_heap::BinaryHeap,
+	path::PathBuf,
+	sync::Arc,
+	time::SystemTime,
+};
+use tkp_hash::{Hash, Sha256PrivateKeyHash, Sha256PrivateKeyTime};
+use tkp_settings::keyholder::{AES_KEY_MAX_SIZE, MIN_HEAP_MAX_SIZE};
 use trex_primitives::ShieldedKey;
-use crate::enclave::api::{clear_heap, get_heap_free_count, insert_key_piece};
-use std::cmp::{min, Ordering, Reverse};
-use std::collections::binary_heap::BinaryHeap;
 
 const HEAP_CLEAN_INTERVAL: u32 = 12;
 
@@ -111,9 +123,11 @@ fn aes_key_release_time_hash_works() {
 			return
 		},
 	};
-	let config = ApiConfig::from_yaml(TEST_CONFIG_PATH);
-	let release_time = release_time();
-	let key = generate_shielding_key(&config,release_time.clone());
+	let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+	d.push("service/src/config.yml");
+	let config = ApiConfig::from_yaml(d.to_str().unwrap());
+	let release_time = test_release_time();
+	let key = generate_shielding_key(&config, release_time.clone());
 	let mut retval = sgx_status_t::SGX_SUCCESS;
 	let mut res: u8 = 1;
 	unsafe {
@@ -131,27 +145,35 @@ fn aes_key_release_time_hash_works() {
 }
 
 #[test]
-pub fn enclave_heap_over_head_works(){
+pub fn enclave_heap_over_head_works() {
+	let enclave = match enclave_init() {
+		Ok(r) => {
+			info!("[+] Init Enclave Successful {}!", r.geteid());
+			r
+		},
+		Err(x) => {
+			info!("[-] Init Enclave Failed {}!", x.as_str());
+			return
+		},
+	};
 	let mut counter = 0;
-	let config = ApiConfig::from_yaml(TEST_CONFIG_PATH);
-	let mut key_piece_cache:BinaryHeap<Reverse<TmpKeyPiece>> = BinaryHeap::new();
+	let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+	d.push("service/src/config.yml");
+	let config = ApiConfig::from_yaml(d.to_str().unwrap());
+	let mut key_piece_cache: BinaryHeap<Reverse<TmpKeyPiece>> = BinaryHeap::new();
 	loop {
-		let release_time = release_time() + ONE_DAY;
-		let key = generate_shielding_key(&config,release_time);
+		let release_time = test_release_time() + ONE_DAY;
+		let key = generate_shielding_key(&config, release_time);
 		let current_block = 1u32;
 		let ext_index = 1u32;
-		let key_piece = TmpKeyPiece{
-			release_time,
-			from_block:current_block,
-			key_piece:key,
-			ext_index
-		};
+		let key_piece =
+			TmpKeyPiece { release_time, from_block: current_block, key_piece: key, ext_index };
 		key_piece_cache.push(Reverse(key_piece));
 		// Get the remaining heap locations
 		let heap_free_count = get_heap_free_count(&enclave).unwrap_or(0);
-		println!("~~~~~~~~~~~~~~~~~~~~~left:{:?}",heap_free_count);
-		if heap_free_count > 0 && key_piece_cache.len() > 0{
-			let insert_count = min(key_piece_cache.len(),heap_free_count);
+		dbg!("~~~~~~~~~~~~~~~~~~~~~left:{:?}", heap_free_count);
+		if heap_free_count > 0 && key_piece_cache.len() > 0 {
+			let insert_count = min(key_piece_cache.len(), heap_free_count);
 			for i in 0..insert_count {
 				if let Some(Reverse(item)) = key_piece_cache.peek() {
 					insert_key_piece(
@@ -161,18 +183,18 @@ pub fn enclave_heap_over_head_works(){
 						item.clone().from_block,
 						item.clone().ext_index,
 					)
-						.expect("Cannot insert shielded key!");
+					.expect("Cannot insert shielded key!");
 					key_piece_cache.pop();
 				}
 			}
 		}
-		println!("key_piece_cache length{:?}",key_piece_cache.len());
+		dbg!("key_piece_cache length{:?}", key_piece_cache.len());
 		counter += 1;
 		if counter % HEAP_CLEAN_INTERVAL == 0 {
 			clear_heap(&enclave.clone()).expect("clear heap error");
 		}
-		if counter == MIN_HEAP_MAX_SIZE {
-			return;
+		if counter as usize == MIN_HEAP_MAX_SIZE {
+			return
 		}
 	}
 }

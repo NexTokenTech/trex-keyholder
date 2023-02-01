@@ -19,3 +19,4 @@
 pub mod enclave;
 /// Constants for test cases, etc
 pub mod primitive;
+pub mod utils;
