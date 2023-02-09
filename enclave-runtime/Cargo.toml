@@ -57,6 +57,7 @@ tkp-settings = { path = "../core-primitives/settings", default-features = false}
 tkp-sgx-io = { path = "../core-primitives/sgx/io", default-features = false, features = ["sgx"] }
 tkp-sgx-crypto = { path = "../core-primitives/sgx/crypto", default-features = false, features = ["sgx"] }
 tkp-nonce-cache = { path = "../core-primitives/nonce-cache", default-features = false, features = ["sgx"] }
+rsa-utils = { git = "https://github.com/NexTokenTech/rsa-utils.git", default-features = false, features = ["sgx"]}
 
 frame-support = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.27" }
 sp-core = { default-features = false,features = ["full_crypto"], git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.27" }

@@ -377,3 +377,20 @@ pub fn perform_nts_time(
 
 	Ok(())
 }
+
+#[allow(unused)]
+pub fn perform_test_rsa3072(enclave: &SgxEnclave) -> Result<(), Error> {
+	let mut retval = sgx_status_t::SGX_SUCCESS;
+	let result = unsafe { ffi::test_rsa3072(enclave.geteid(), &mut retval) };
+
+	match result {
+		sgx_status_t::SGX_SUCCESS => {
+			println!("ECALL rsa 3072 Success!");
+		},
+		_ => {
+			println!("[-] ECALL rsa 3072 Enclave Failed {}!", result.as_str());
+		},
+	}
+
+	Ok(())
+}

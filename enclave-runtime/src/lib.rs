@@ -94,6 +94,13 @@ use crate::{
 	attestation::hash_from_slice,
 	nts::{nts_to_system, run_nts_ke_client, run_nts_ntp_client},
 };
+use rsa_utils::rsa3072::{
+	ff,
+	rsa::{
+		create_rng, decrypt, encrypt, key_pair, new_private_key, new_public_key, oaep_decode,
+		oaep_encode, HASH_TYPE, RFS,
+	},
+};
 use sgx_tcrypto::rsgx_sha256_slice;
 use sp_core::blake2_256;
 pub use substrate_api_client::{
@@ -101,6 +108,7 @@ pub use substrate_api_client::{
 	PlainTipExtrinsicParamsBuilder, SubstrateDefaultSignedExtra, UncheckedExtrinsicV4,
 };
 use tkp_hash::{Sha256PrivateKeyHash, Sha256PrivateKeyTime};
+
 lazy_static! {
 	static ref MIN_BINARY_HEAP: Mutex<BinaryHeap<Reverse<KeyPiece>>> =
 		Mutex::new(BinaryHeap::new());
@@ -736,6 +744,53 @@ pub extern "C" fn test_key_piece(
 			info!("Hash values do not match");
 		},
 	}
+	sgx_status_t::SGX_SUCCESS
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn test_rsa3072() -> sgx_status_t {
+	let sha = HASH_TYPE;
+	let message: &[u8] = b"Hello World";
+
+	let mut rng = create_rng();
+	let mut pbc = new_public_key(ff::FFLEN);
+	let mut prv = new_private_key(ff::HFLEN);
+
+	let mut ml: [u8; RFS] = [0; RFS];
+	let mut c: [u8; RFS] = [0; RFS];
+	let mut e: [u8; RFS] = [0; RFS];
+
+	key_pair(&mut rng, 65537, &mut prv, &mut pbc);
+	let pbc_json = serde_json::to_string(&pbc).unwrap();
+	println!("public key json：{:?}", pbc_json);
+
+	oaep_encode(sha, &message, &mut rng, None, &mut e); /* OAEP encode message M to E  */
+	encrypt(&pbc, &e, &mut c); /* encrypt encoded message */
+	println!("cipher:{:?}", c);
+
+	decrypt(&prv, &c, &mut ml);
+	let mut cmp = true;
+	if e.len() != ml.len() {
+		cmp = false;
+	} else {
+		for j in 0..e.len() {
+			if e[j] != ml[j] {
+				cmp = false;
+			}
+		}
+	}
+	if cmp {
+		println!("Decryption is OK");
+	} else {
+		println!("Decryption Failed");
+	}
+	let used_size = oaep_decode(sha, None, &mut ml); /* OAEP decode message  */
+	let mut message_decrypt = vec![];
+	for i in 0..used_size {
+		message_decrypt.push(ml[i]);
+	}
+	println!("{:?}", String::from_utf8(message_decrypt));
+
 	sgx_status_t::SGX_SUCCESS
 }
 

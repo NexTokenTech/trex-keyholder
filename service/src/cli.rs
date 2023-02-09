@@ -33,7 +33,7 @@ use aes_gcm::{
 };
 use clap::Parser;
 use config::Config as ApiConfig;
-use enclave::api::{enclave_account, enclave_init, perform_nts_time};
+use enclave::api::{enclave_account, enclave_init, perform_nts_time, perform_test_rsa3072};
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
 #[allow(unused)]
@@ -88,6 +88,7 @@ enum Action {
 	/// Obtain the balance in the account
 	GetFreeBalance,
 	TestNts,
+	TestRsa
 }
 
 /// Seed of signature keypair for testing
@@ -226,6 +227,9 @@ fn main() {
 		Action::TestNts => {
 			perform_nts_time(&enclave).unwrap();
 		},
+		Action::TestRsa => {
+			perform_test_rsa3072(&enclave).unwrap();
+		}
 	}
 }
 

@@ -69,6 +69,7 @@ enclave {
                                     [out] uint8_t* res
                                 );
         public sgx_status_t obtain_nts_time();
+        public sgx_status_t test_rsa3072();
     };
     untrusted {
     	sgx_status_t ocall_sgx_init_quote([out] sgx_target_info_t *ret_ti,
