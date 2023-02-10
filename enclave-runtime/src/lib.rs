@@ -94,11 +94,11 @@ use crate::{
 	attestation::hash_from_slice,
 	nts::{nts_to_system, run_nts_ke_client, run_nts_ntp_client},
 };
-use rsa_utils::rsa3072::{
+use rsa_sgx::rsa3072::{
 	ff,
 	rsa::{
 		create_rng, decrypt, encrypt, key_pair, new_private_key, new_public_key, oaep_decode,
-		oaep_encode, HASH_TYPE, RFS,
+		oaep_encode, RsaPublicKey, HASH_TYPE, RFS,
 	},
 };
 use sgx_tcrypto::rsgx_sha256_slice;
@@ -108,6 +108,8 @@ pub use substrate_api_client::{
 	PlainTipExtrinsicParamsBuilder, SubstrateDefaultSignedExtra, UncheckedExtrinsicV4,
 };
 use tkp_hash::{Sha256PrivateKeyHash, Sha256PrivateKeyTime};
+
+use sgx_serialize::{DeSerializeHelper, SerializeHelper};
 
 lazy_static! {
 	static ref MIN_BINARY_HEAP: Mutex<BinaryHeap<Reverse<KeyPiece>>> =
@@ -158,6 +160,7 @@ pub unsafe extern "C" fn get_rsa_encryption_pubkey(
 	if SgxFile::open(KEYFILE).is_err() {
 		let rsa_keypair = Rsa3072KeyPair::new().unwrap();
 		let rsa_key_json = serde_json::to_string(&rsa_keypair).unwrap();
+		println!("~~~~~~~~~~~~~~~~~~~~~~~{:?}", rsa_key_json);
 		provisioning_key(rsa_key_json.as_ptr() as *const u8, rsa_key_json.len(), KEYFILE);
 	}
 	let mut key_vec: Vec<u8> = Vec::new();
@@ -190,6 +193,107 @@ pub unsafe extern "C" fn get_rsa_encryption_pubkey(
 	left.clone_from_slice(&pubkey_exposed.n);
 	// fill the right side with whitespace
 	right.clone_from_slice(&pubkey_exposed.e);
+
+	sgx_status_t::SGX_SUCCESS
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn generate_rsa_3072_pubkey(
+	pubkey: *mut u8,
+	pubkey_size: u32,
+	effective_size: *mut u32
+) -> sgx_status_t {
+	if SgxFile::open(RSA3072_PRIVATE_KEY_FILE).is_err() {
+		let mut rng = create_rng();
+		let mut pbc = new_public_key(ff::FFLEN);
+		let mut prv = new_private_key(ff::HFLEN);
+
+		key_pair(&mut rng, 65537, &mut prv, &mut pbc);
+		let prv_json = serde_json::to_string(&prv).unwrap();
+		let pbc_json = serde_json::to_string(&pbc).unwrap();
+		provisioning_key(prv_json.as_ptr() as *const u8, prv_json.len(), RSA3072_PRIVATE_KEY_FILE);
+		provisioning_key(pbc_json.as_ptr() as *const u8, pbc_json.len(), RSA3072_PUB_KEY_FILE);
+	}
+
+	let mut key_vec: Vec<u8> = Vec::new();
+	let key_json_str = match SgxFile::open(RSA3072_PUB_KEY_FILE) {
+		Ok(mut f) => match f.read_to_end(&mut key_vec) {
+			Ok(len) => {
+				println!("Read {} bytes from Key file", len);
+				std::str::from_utf8(&key_vec).unwrap()
+			},
+			Err(x) => {
+				println!("Read keyfile failed {}", x);
+				return sgx_status_t::SGX_ERROR_UNEXPECTED
+			},
+		},
+		Err(x) => {
+			println!("get_sealed_pcl_key cannot open keyfile, please check if key is provisioned successfully! {}", x);
+			return sgx_status_t::SGX_ERROR_UNEXPECTED
+		},
+	};
+	let key_json_vec = key_json_str.to_string().as_bytes().to_vec();
+	let rsa_pubkey: RsaPublicKey = serde_json::from_str(&key_json_str).unwrap();
+	let pubkey_slice = slice::from_raw_parts_mut(pubkey, pubkey_size as usize);
+	write_slice_and_whitespace_pad(pubkey_slice, key_json_vec.clone())
+		.expect("Error in writing ext slice!");
+	*effective_size = key_json_vec.len() as u32;
+
+	sgx_status_t::SGX_SUCCESS
+}
+
+#[no_mangle]
+pub extern "C" fn test_str_out(test_str: *mut u8, test_str_size: u32) -> sgx_status_t {
+	let extrinsic_slice1 = unsafe { slice::from_raw_parts_mut(test_str, test_str_size as usize) };
+	println!("test_str_out:{:?}", extrinsic_slice1);
+	write_slice_and_whitespace_pad(extrinsic_slice1, "hello world".to_string().as_bytes().to_vec())
+		.expect("Error in writing ext slice!");
+	sgx_status_t::SGX_SUCCESS
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn test_rsa3072() -> sgx_status_t {
+	let sha = HASH_TYPE;
+	let message: &[u8] = b"Hello World";
+
+	let mut rng = create_rng();
+	let mut pbc = new_public_key(ff::FFLEN);
+	let mut prv = new_private_key(ff::HFLEN);
+
+	let mut ml: [u8; RFS] = [0; RFS];
+	let mut c: [u8; RFS] = [0; RFS];
+	let mut e: [u8; RFS] = [0; RFS];
+
+	key_pair(&mut rng, 65537, &mut prv, &mut pbc);
+	let pbc_json = serde_json::to_string(&pbc).unwrap();
+	println!("public key json：{:?}", pbc_json);
+
+	oaep_encode(sha, &message, &mut rng, None, &mut e); /* OAEP encode message M to E  */
+	encrypt(&pbc, &e, &mut c); /* encrypt encoded message */
+	println!("cipher:{:?}", c);
+
+	decrypt(&prv, &c, &mut ml);
+	let mut cmp = true;
+	if e.len() != ml.len() {
+		cmp = false;
+	} else {
+		for j in 0..e.len() {
+			if e[j] != ml[j] {
+				cmp = false;
+			}
+		}
+	}
+	if cmp {
+		println!("Decryption is OK");
+	} else {
+		println!("Decryption Failed");
+	}
+	let used_size = oaep_decode(sha, None, &mut ml); /* OAEP decode message  */
+	let mut message_decrypt = vec![];
+	for i in 0..used_size {
+		message_decrypt.push(ml[i]);
+	}
+	println!("{:?}", String::from_utf8(message_decrypt));
 
 	sgx_status_t::SGX_SUCCESS
 }
@@ -744,53 +848,6 @@ pub extern "C" fn test_key_piece(
 			info!("Hash values do not match");
 		},
 	}
-	sgx_status_t::SGX_SUCCESS
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn test_rsa3072() -> sgx_status_t {
-	let sha = HASH_TYPE;
-	let message: &[u8] = b"Hello World";
-
-	let mut rng = create_rng();
-	let mut pbc = new_public_key(ff::FFLEN);
-	let mut prv = new_private_key(ff::HFLEN);
-
-	let mut ml: [u8; RFS] = [0; RFS];
-	let mut c: [u8; RFS] = [0; RFS];
-	let mut e: [u8; RFS] = [0; RFS];
-
-	key_pair(&mut rng, 65537, &mut prv, &mut pbc);
-	let pbc_json = serde_json::to_string(&pbc).unwrap();
-	println!("public key json：{:?}", pbc_json);
-
-	oaep_encode(sha, &message, &mut rng, None, &mut e); /* OAEP encode message M to E  */
-	encrypt(&pbc, &e, &mut c); /* encrypt encoded message */
-	println!("cipher:{:?}", c);
-
-	decrypt(&prv, &c, &mut ml);
-	let mut cmp = true;
-	if e.len() != ml.len() {
-		cmp = false;
-	} else {
-		for j in 0..e.len() {
-			if e[j] != ml[j] {
-				cmp = false;
-			}
-		}
-	}
-	if cmp {
-		println!("Decryption is OK");
-	} else {
-		println!("Decryption Failed");
-	}
-	let used_size = oaep_decode(sha, None, &mut ml); /* OAEP decode message  */
-	let mut message_decrypt = vec![];
-	for i in 0..used_size {
-		message_decrypt.push(ml[i]);
-	}
-	println!("{:?}", String::from_utf8(message_decrypt));
-
 	sgx_status_t::SGX_SUCCESS
 }
 

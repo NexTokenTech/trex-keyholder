@@ -28,6 +28,15 @@ extern "C" {
 		pubkey_size: u32,
 	) -> sgx_status_t;
 
+	#[allow(unused)]
+	pub fn generate_rsa_3072_pubkey(
+		eid: sgx_enclave_id_t,
+		retval: *mut sgx_status_t,
+		pubkey: *mut u8,
+		pubkey_size: u32,
+		effective_size: *mut u32
+	) -> sgx_status_t;
+
 	/// get pubkey of sp_core key pair from enclave
 	#[allow(unused)]
 	pub fn get_ecc_signing_pubkey(

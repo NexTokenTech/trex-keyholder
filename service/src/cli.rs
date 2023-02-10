@@ -33,7 +33,7 @@ use aes_gcm::{
 };
 use clap::Parser;
 use config::Config as ApiConfig;
-use enclave::api::{enclave_account, enclave_init, perform_nts_time, perform_test_rsa3072};
+use enclave::api::{enclave_account, enclave_init, perform_nts_time, get_rsa_pubkey};
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
 #[allow(unused)]
@@ -59,6 +59,7 @@ use utils::{
 		get_shielding_key, TREX,
 	},
 };
+use crate::enclave::ffi::generate_rsa_3072_pubkey;
 use crate::test::primitive::consts::{AES_NONCE, KEY_SIZE};
 
 /// Arguments for the cli.
@@ -88,7 +89,8 @@ enum Action {
 	/// Obtain the balance in the account
 	GetFreeBalance,
 	TestNts,
-	TestRsa
+	TestRsa,
+	Rsa3072PubKey
 }
 
 /// Seed of signature keypair for testing
@@ -228,7 +230,10 @@ fn main() {
 			perform_nts_time(&enclave).unwrap();
 		},
 		Action::TestRsa => {
-			perform_test_rsa3072(&enclave).unwrap();
+			get_rsa_pubkey(&enclave);
+		},
+		Action::Rsa3072PubKey => {
+			get_rsa_pubkey(&enclave);
 		}
 	}
 }

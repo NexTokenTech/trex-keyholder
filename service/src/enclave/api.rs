@@ -23,10 +23,10 @@ use sgx_urts::SgxEnclave;
 use sp_core::{crypto::AccountId32, ed25519};
 /// keep this api free from chain-specific types!
 use std::io::{Read, Write};
-use std::{fs::File, path::PathBuf};
+use std::{fs::File, path::PathBuf, result};
 use tkp_settings::{
 	files::{ENCLAVE_FILE, ENCLAVE_TOKEN},
-	keyholder::{KEY_EXT_MAX_SIZE, AES_KEY_MAX_SIZE, RA_EXT_MAX_SIZE},
+	keyholder::{KEY_EXT_MAX_SIZE, AES_KEY_MAX_SIZE, RA_EXT_MAX_SIZE,SHIELDING_KEY_SIZE},
 };
 
 /// init enclave
@@ -154,6 +154,33 @@ pub fn get_shielding_pubkey(enclave: &SgxEnclave) -> Rsa3072PubKey {
 	let rsa_pubkey: Rsa3072PubKey = unsafe { std::mem::transmute(pubkey) };
 	debug!("Enclave's RSA pubkey:\n{:?}", rsa_pubkey);
 	rsa_pubkey
+}
+
+#[allow(unused)]
+pub fn get_rsa_pubkey(enclave: &SgxEnclave){
+	let mut pubkey = [0u8; SHIELDING_KEY_SIZE];
+	let mut effective_size = 0u32;
+	let mut retval = sgx_status_t::SGX_SUCCESS;
+	let result = unsafe {
+		ffi::generate_rsa_3072_pubkey(
+			enclave.geteid(),
+			&mut retval,
+			pubkey.as_mut_ptr(),
+			pubkey.len() as u32,
+			&mut effective_size
+		)
+	};
+	let (pubkey_json_vec, _) = pubkey.split_at_mut(effective_size as usize);
+	println!("{:?}",pubkey_json_vec);
+	match result {
+		sgx_status_t::SGX_SUCCESS => {
+			println!("ECALL RSA 3072 pubkey Success!");
+		},
+		_ => {
+			println!("[-] ECALL RSA 3072 pubkey Enclave Failed {}!", result.as_str());
+			return
+		},
+	}
 }
 
 /// Put node metadata into enclave memory for temporary storage

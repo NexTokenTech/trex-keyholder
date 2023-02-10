@@ -52,6 +52,8 @@ pub mod files {
 	pub const KEYFILE: &'static str = "prov_key.bin";
 	pub const MINHEAPFILE: &'static str = "minheap.bin";
 	pub const CERTEXPIRYDAYS: i64 = 90i64;
+	pub const RSA3072_PRIVATE_KEY_FILE: &'static str = "rsa3072_private_key.bin";
+	pub const RSA3072_PUB_KEY_FILE: &'static str = "rsa3072_pub_key.bin";
 }
 
 /// Settings concerning the keyholder

@@ -593,7 +593,7 @@ dependencies = [
  "num-bigint",
  "parity-scale-codec",
  "rand 0.7.3 (git+https://github.com/mesalock-linux/rand-sgx)",
- "rsa-utils",
+ "rsa-sgx",
  "rustls",
  "serde 1.0.118 (git+https://github.com/mesalock-linux/serde-sgx)",
  "serde_derive 1.0.118",
@@ -1488,9 +1488,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "rsa-utils"
+name = "rsa-sgx"
 version = "0.1.0"
-source = "git+https://github.com/NexTokenTech/rsa-utils.git#8a38b60e6e1ca438ebb8ac8865bdd4a329559216"
+source = "git+https://github.com/NexTokenTech/rsa-sgx.git#4bef3a0103917c21b810deacb8e41c6af17b413e"
 dependencies = [
  "parity-scale-codec",
  "serde 1.0.118 (git+https://github.com/mesalock-linux/serde-sgx)",

@@ -33,6 +33,7 @@ enclave {
     trusted {
         /* define ECALLs here. */
         public sgx_status_t get_rsa_encryption_pubkey([out, size=pubkey_size] uint8_t* pubkey, uint32_t pubkey_size);
+        public sgx_status_t generate_rsa_3072_pubkey([out, size=pubkey_size] uint8_t* pubkey, uint32_t pubkey_size,[out] uint32_t* effective_size);
         public sgx_status_t get_ecc_signing_pubkey(
         			[out, size=pubkey_size] uint8_t* pubkey, uint32_t pubkey_size);
         public sgx_status_t insert_key_piece([in, size=key_len] const uint8_t* key, size_t key_len, uint64_t release_time, uint32_t current_block, uint32_t ext_index);
