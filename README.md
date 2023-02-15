@@ -30,6 +30,12 @@ RUST_LOG=info ./trex-keyholder -c ../service/src/config.yml
 The default configuration file is included within the source code, and you may use other configuration 
 based on the environment and requirements.
 
+If you want to run the service without remote attestation verify,you can run:
+```
+cd bin
+RUST_LOG=info ./trex-keyholder -c ../service/src/config.yml --skip-ra
+```
+
 ## Unit Test
 A number of unit tests cover the core functions around the enclave, the enclave runtime library needs to be built first 
 before running the unit test. 
