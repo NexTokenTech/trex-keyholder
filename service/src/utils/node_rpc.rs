@@ -14,6 +14,7 @@
  limitations under the License.
 
 */
+use codec::Encode;
 use crate::config::Config;
 use sgx_crypto_helper::rsa3072::Rsa3072PubKey;
 use sgx_types::*;
@@ -22,9 +23,12 @@ use sp_core::{
 	sr25519, H256,
 };
 use substrate_api_client::{
-	rpc::WsRpcClient, Api, ApiClientError, ApiResult, AssetTipExtrinsicParams,
+	rpc::WsRpcClient, Api, ApiClientError, ApiResult, AssetTipExtrinsicParams, Balance,
+	GenericAddress, XtStatus,
 };
 use tee_primitives::Enclave;
+use sp_keyring::AccountKeyring;
+pub const EXISTENTIAL_DEPOSIT_FACTOR_FOR_INIT_FUNDS: u128 = 200_000;
 
 /// Const str "Tee"
 #[allow(unused)]
@@ -72,6 +76,19 @@ pub fn get_genesis_hash(config: &Config) -> Vec<u8> {
 pub fn get_enclave_count(config: &Config, at_block: Option<H256>) -> ApiResult<u64> {
 	let api = get_api(config).unwrap();
 	Ok(api.get_storage_value(TEE, "EnclaveCount", at_block)?.unwrap_or(0u64))
+}
+
+pub fn transfer_from_alice(config: &Config, accountid: &AccountId32) {
+	println!("[+] bootstrap funding Enclave from Alice's funds");
+	let alice = AccountKeyring::Alice.pair();
+	let mut api = get_api(config).unwrap();
+	api.signer = Some(alice);
+	let xt =
+		api.balance_transfer(GenericAddress::Id(accountid.clone()), EXISTENTIAL_DEPOSIT_FACTOR_FOR_INIT_FUNDS);
+	let mut xthex = hex::encode(xt.encode());
+	xthex.insert_str(0, "0x");
+	let xt_hash = api.send_extrinsic(xthex, XtStatus::InBlock);
+	println!("[<] Extrinsic got included in a block. Hash: {:?}\n", xt_hash);
 }
 
 /// Obtain the enclave through rpc

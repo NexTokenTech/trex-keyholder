@@ -72,6 +72,8 @@ struct Args {
 	/// Path of config YAML file.
 	#[arg(short, long, default_value_t=("config.yml".to_string()))]
 	config: String,
+	#[arg(short, long, default_value_t=(false))]
+	skip_ra: bool,
 }
 
 /// On chain event collection
@@ -114,8 +116,14 @@ fn main() {
 	);
 
 	let trusted_url = config.mu_ra_url();
-	let uxt =
-		perform_ra(&enclave, genesis_hash.clone(), nonce, trusted_url.as_bytes().to_vec()).unwrap();
+	let uxt = perform_ra(
+		&enclave,
+		genesis_hash.clone(),
+		nonce,
+		trusted_url.as_bytes().to_vec(),
+		args.skip_ra,
+	)
+	.unwrap();
 
 	send_uxt(&config, uxt, XtStatus::Finalized);
 

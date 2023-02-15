@@ -45,7 +45,10 @@ pub use substrate_api_client::{
 	compose_extrinsic_offline, ExtrinsicParams, PlainTip, PlainTipExtrinsicParams,
 	PlainTipExtrinsicParamsBuilder, SubstrateDefaultSignedExtra, UncheckedExtrinsicV4,
 };
-use tkp_settings::files::{RA_API_KEY_FILE, RA_SPID_FILE};
+use tkp_settings::{
+	files::{RA_API_KEY_FILE, RA_SPID_FILE},
+	keyholder::MR_ENCLAVE_SIZE,
+};
 use tkp_sgx_crypto::Ed25519Seal;
 use tkp_sgx_io::StaticSealedIO;
 
@@ -96,38 +99,21 @@ pub unsafe extern "C" fn perform_ra(
 	w_url_size: u32,
 	unchecked_extrinsic: *mut u8,
 	unchecked_extrinsic_size: u32,
+	skip_ra: c_int,
 ) -> sgx_status_t {
 	// our certificate is unlinkable
 	let sign_type = sgx_quote_sign_type_t::SGX_LINKABLE_SIGNATURE;
 
-	let chain_signer = Ed25519Seal::unseal_from_static_file().unwrap();
-	info!("[Enclave Attestation] Ed25519 pub raw : {:?}", chain_signer.public().0);
+	let skip_ra_bool = skip_ra == 1;
 
-	// Generate Keypair
-	let ecc_handle = SgxEccHandle::new();
-	let _result = ecc_handle.open();
-	let (prv_k, pub_k) = ecc_handle.create_key_pair().unwrap();
-
-	let (attn_report, sig, cert) = match create_attestation_report(&chain_signer.public().0, sign_type) {
-		Ok(r) => {
-			println!("Success in create_attestation_report: {:?}", r);
-			r
-		},
-		Err(e) => {
-			debug!("Error in create_attestation_report: {:?}", e);
-			return e
-		},
+	let cert_der: Vec<u8> = if !skip_ra_bool {
+		match create_ra_report_and_signature(sign_type) {
+			Ok((_key_der, cert_der)) => cert_der,
+			Err(e) => return e.into(),
+		}
+	} else {
+		[0; MR_ENCLAVE_SIZE].to_vec()
 	};
-
-	let payload = attn_report + "|" + &sig + "|" + &cert;
-	let (_key_der, cert_der) = match cert::gen_ecc_cert(payload, &prv_k, &pub_k, &ecc_handle) {
-		Ok(r) => r,
-		Err(e) => {
-			debug!("Error in gen_ecc_cert: {:?}", e);
-			return e
-		},
-	};
-	let _result = ecc_handle.close();
 
 	debug!("[Enclave] Compose extrinsic");
 	let genesis_hash_slice = slice::from_raw_parts(genesis_hash, genesis_hash_size as usize);
@@ -208,6 +194,42 @@ pub unsafe extern "C" fn perform_ra(
 	};
 
 	sgx_status_t::SGX_SUCCESS
+}
+
+fn create_ra_report_and_signature(
+	sign_type: sgx_quote_sign_type_t
+) -> SgxResult<(Vec<u8>, Vec<u8>)> {
+	let chain_signer = Ed25519Seal::unseal_from_static_file().unwrap();
+	info!("[Enclave Attestation] Ed25519 pub raw : {:?}", chain_signer.public().0);
+
+	// Generate Keypair
+	let ecc_handle = SgxEccHandle::new();
+	let _result = ecc_handle.open();
+	let (prv_k, pub_k) = ecc_handle.create_key_pair().unwrap();
+
+	let (attn_report, sig, cert) =
+		match create_attestation_report(&chain_signer.public().0, sign_type) {
+			Ok(r) => {
+				println!("Success in create_attestation_report: {:?}", r);
+				r
+			},
+			Err(e) => {
+				debug!("Error in create_attestation_report: {:?}", e);
+				return Err(e);
+			},
+		};
+
+	let payload = attn_report + "|" + &sig + "|" + &cert;
+	let (key_der, cert_der) = match cert::gen_ecc_cert(payload, &prv_k, &pub_k, &ecc_handle) {
+		Ok(r) => r,
+		Err(e) => {
+			debug!("Error in gen_ecc_cert: {:?}", e);
+			return Err(e);
+		},
+	};
+	let _result = ecc_handle.close();
+	info!("    [Enclave] Generate ECC Certificate successful");
+	Ok((key_der, cert_der))
 }
 
 /// remote attestation report
