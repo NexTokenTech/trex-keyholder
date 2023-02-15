@@ -16,7 +16,7 @@
 */
 ///! FFI's that call into the enclave. These functions need to be added to the
 /// enclave edl file and be implemented within the enclave.
-use sgx_types::{sgx_enclave_id_t, sgx_status_t};
+use sgx_types::{sgx_enclave_id_t, sgx_status_t,c_int};
 
 extern "C" {
 	/// get rsa shielding pubkey from enclave
@@ -72,6 +72,7 @@ extern "C" {
 		w_url_size: u32,
 		unchecked_extrinsic: *mut u8,
 		unchecked_extrinsic_size: u32,
+		skip_ra: c_int,
 	) -> sgx_status_t;
 
 	/// store nonce in enclave memory

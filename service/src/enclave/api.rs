@@ -112,6 +112,7 @@ pub fn perform_ra(
 	genesis_hash: Vec<u8>,
 	nonce: u32,
 	w_url: Vec<u8>,
+	skip_ra: bool
 ) -> Result<Vec<u8>, Error> {
 	let mut retval = sgx_status_t::SGX_SUCCESS;
 
@@ -129,6 +130,7 @@ pub fn perform_ra(
 			w_url.len() as u32,
 			unchecked_extrinsic.as_mut_ptr(),
 			unchecked_extrinsic.len() as u32,
+			<bool as Into<c_int>>::into(skip_ra),
 		)
 	};
 
