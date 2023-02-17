@@ -209,12 +209,23 @@ fn main() {
 			println!("RSA public key: {json}");
 		},
 		Action::SigningPubKey => {
+			// generate tee account id
 			let tee_account_id = enclave_account(&enclave).unwrap();
 			println!("Enclave account {:} ", &tee_account_id.to_ss58check());
 			let tee_account_ss58 = tee_account_id.to_ss58check();
 			let mut file = File::create("tee_account_id.txt").unwrap();
 			file.write_all(tee_account_ss58.as_bytes())
 				.expect("failed to write into tee_account_id.txt");
+			// generate tx account id
+			let f = std::fs::File::open(&args.seed).unwrap();
+			let seed: Seed = serde_yaml::from_reader(f).expect("Could not read seed.");
+			let signer = sr25519::Pair::from_seed_slice(seed.hex.as_slice()).unwrap();
+			let pubkey = signer.public();
+			let tx_sender_account_id = AccountId::from(*pubkey.as_array_ref());
+			let tx_sender_account_id_ss58 = tx_sender_account_id.to_ss58check();
+			let mut file = File::create("tx_account_id.txt").unwrap();
+			file.write_all(tx_sender_account_id_ss58.as_bytes())
+				.expect("failed to write into tx_account_id.txt");
 		},
 		Action::GetFreeBalance => {
 			// Get the account ID of our TEE.

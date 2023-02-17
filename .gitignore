@@ -22,3 +22,4 @@
 /bin/tee_account_id.txt
 /bin/rsa3072_private_key.bin
 /bin/rsa3072_pub_key.bin
+/bin/tx_account_id.txt
