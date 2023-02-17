@@ -16,6 +16,7 @@ cd ../trex-account-funds
 cargo install subxt-cli
 subxt metadata -f bytes > metadata.scale --url http://172.17.0.1:9933/
 ./target/release/trex-account-funds -n ws://172.17.0.1:9944 -t ../trex-keyholder/bin/tee_account_id.txt
+./target/release/trex-account-funds -n ws://172.17.0.1:9944 -t ../trex-keyholder/bin/tx_account_id.txt
 
 # sleep 5s for waiting funds
 sleep 5
