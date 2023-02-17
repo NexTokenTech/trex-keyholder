@@ -216,7 +216,7 @@ fn main() {
 	}));
 	handlers.push(thread::spawn(move || {
 		loop {
-			info!("execute pop-key loop");
+			debug!("execute pop-key loop");
 			// take expired key piece out of the enclave.
 			if let Some((key, block_num, ext_idx)) = get_expired_key(pop_key_enclave.borrow()) {
 				info!("Get expired key piece: {:X?}", key.as_slice());
