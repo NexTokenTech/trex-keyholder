@@ -162,4 +162,13 @@ extern "C" {
 		eid: sgx_enclave_id_t,
 		retval: *mut sgx_status_t,
 	) -> sgx_status_t;
+
+	pub fn encrypt_rsa3072(
+		eid: sgx_enclave_id_t,
+		retval: *mut sgx_status_t,
+		plain: *const u8,
+		plain_len: usize,
+		cipher: *mut u8,
+		cipher_len: usize
+	) -> sgx_status_t;
 }

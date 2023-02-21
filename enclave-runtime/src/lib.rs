@@ -252,6 +252,52 @@ pub extern "C" fn test_str_out(test_str: *mut u8, test_str_size: u32) -> sgx_sta
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn encrypt_rsa3072(
+	plain: *const u8,
+	plain_len: usize,
+	cipher: *mut u8,
+	cipher_len: usize
+) -> sgx_status_t{
+	let plain_text_slice = slice::from_raw_parts(plain, plain_len as usize);
+
+	let mut key_vec: Vec<u8> = Vec::new();
+	let key_json_str = match SgxFile::open(RSA3072_PUB_KEY_FILE) {
+		Ok(mut f) => match f.read_to_end(&mut key_vec) {
+			Ok(len) => {
+				println!("Read {} bytes from Key file", len);
+				std::str::from_utf8(&key_vec).unwrap()
+			},
+			Err(x) => {
+				println!("Read keyfile failed {}", x);
+				return sgx_status_t::SGX_ERROR_UNEXPECTED
+			},
+		},
+		Err(x) => {
+			println!("get_sealed_pcl_key cannot open keyfile, please check if key is provisioned successfully! {}", x);
+			return sgx_status_t::SGX_ERROR_UNEXPECTED
+		},
+	};
+	let key_json_vec = key_json_str.to_string().as_bytes().to_vec();
+	let rsa_pubkey: RsaPublicKey = serde_json::from_str(&key_json_str).unwrap();
+
+	let sha = HASH_TYPE;
+	let mut rng = create_rng();
+	let mut c: [u8; RFS] = [0; RFS];
+	let mut e: [u8; RFS] = [0; RFS];
+
+	oaep_encode(sha, &plain_text_slice, &mut rng, None, &mut e); /* OAEP encode message M to E  */
+	encrypt(&rsa_pubkey, &e, &mut c); /* encrypt encoded message */
+	println!("cipher:{:?}", c);
+
+	let cipher_slice =
+		slice::from_raw_parts_mut(cipher, cipher_len as usize);
+	write_slice_and_whitespace_pad(cipher_slice, c.to_vec())
+		.expect("Error in writing ext slice!");
+
+	sgx_status_t::SGX_SUCCESS
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn test_rsa3072() -> sgx_status_t {
 	let sha = HASH_TYPE;
 	let message: &[u8] = b"Hello World";
@@ -270,7 +316,7 @@ pub unsafe extern "C" fn test_rsa3072() -> sgx_status_t {
 
 	oaep_encode(sha, &message, &mut rng, None, &mut e); /* OAEP encode message M to E  */
 	encrypt(&pbc, &e, &mut c); /* encrypt encoded message */
-	println!("cipher:{:?}", c);
+	println!("cipher:{:?}", c.len());
 
 	decrypt(&prv, &c, &mut ml);
 	let mut cmp = true;
@@ -728,23 +774,23 @@ pub unsafe extern "C" fn perform_expire_key(
 ///	};
 ///	println!("shielding pub key");
 ///	let rsa_pubkey = get_shielding_pubkey(&enclave);
-///	let plaintext: Vec<u8> = "test encrypt text and decrypt cipher".to_string().into_bytes();
-///	let mut ciphertext: Vec<u8> = Vec::new();
-///	rsa_pubkey.encrypt_buffer(&plaintext, &mut ciphertext).expect("Encrypt Error");
-///
-///	let mut retval = sgx_status_t::SGX_SUCCESS;
-///	let mut res: u8 = 1;
-///	unsafe {
-///		ffi::test_decrypt(
-///			enclave.geteid(),
-///			&mut retval,
-///			plaintext.as_ptr(),
-///			plaintext.len() as u32,
-///			ciphertext.as_ptr(),
-///			ciphertext.len() as u32,
-///			&mut res,
-///		);
-///	};
+// 	let plaintext: Vec<u8> = "test encrypt text and decrypt cipher".to_string().into_bytes();
+// 	let mut ciphertext: Vec<u8> = Vec::new();
+// 	rsa_pubkey.encrypt_buffer(&plaintext, &mut ciphertext).expect("Encrypt Error");
+//
+// 	let mut retval = sgx_status_t::SGX_SUCCESS;
+// 	let mut res: u8 = 1;
+// 	unsafe {
+// 		ffi::test_decrypt(
+// 			enclave.geteid(),
+// 			&mut retval,
+// 			plaintext.as_ptr(),
+// 			plaintext.len() as u32,
+// 			ciphertext.as_ptr(),
+// 			ciphertext.len() as u32,
+// 			&mut res,
+// 		);
+// 	};
 /// ```
 #[no_mangle]
 pub extern "C" fn test_decrypt(

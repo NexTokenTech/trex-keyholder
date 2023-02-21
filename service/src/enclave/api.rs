@@ -28,6 +28,7 @@ use tkp_settings::{
 	files::{ENCLAVE_FILE, ENCLAVE_TOKEN},
 	keyholder::{KEY_EXT_MAX_SIZE, AES_KEY_MAX_SIZE, RA_EXT_MAX_SIZE,SHIELDING_KEY_SIZE},
 };
+use sgx_types::SGX_RSA3072_KEY_SIZE;
 
 /// init enclave
 pub fn enclave_init() -> SgxResult<SgxEnclave> {
@@ -420,4 +421,37 @@ pub fn perform_test_rsa3072(enclave: &SgxEnclave) -> Result<(), Error> {
 	}
 
 	Ok(())
+}
+
+pub fn encrypt_rsa3072(
+	enclave: &SgxEnclave,
+	plaintext: Vec<u8>,
+)  -> Result<Vec<u8>, Error> {
+	let mut retval = sgx_status_t::SGX_SUCCESS;
+	let cipher_size = SGX_RSA3072_KEY_SIZE;
+	let mut ciphertext: Vec<u8> = vec![0u8; cipher_size as usize];
+
+	let mut retval = sgx_status_t::SGX_SUCCESS;
+	let mut res: u8 = 1;
+	let result = unsafe {
+		ffi::encrypt_rsa3072(
+			enclave.geteid(),
+			&mut retval,
+			plaintext.as_ptr(),
+			plaintext.len() as usize,
+			ciphertext.as_mut_ptr(),
+			ciphertext.len() as usize,
+		)
+	};
+
+	match result {
+		sgx_status_t::SGX_SUCCESS => {
+			println!("ECALL rsa 3072 Success!");
+		},
+		_ => {
+			println!("[-] ECALL rsa 3072 Enclave Failed {}!", result.as_str());
+		},
+	}
+	println!("cipher:{:?}", ciphertext);
+	Ok(ciphertext)
 }

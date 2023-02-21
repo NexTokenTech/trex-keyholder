@@ -71,6 +71,11 @@ enclave {
                                 );
         public sgx_status_t obtain_nts_time();
         public sgx_status_t test_rsa3072();
+        public sgx_status_t encrypt_rsa3072(
+                                            [in, size=plain_len] const uint8_t* plain, size_t plain_len,
+                                            [out, size=cipher_len] uint8_t* cipher, size_t cipher_len
+                                        );
+
     };
     untrusted {
     	sgx_status_t ocall_sgx_init_quote([out] sgx_target_info_t *ret_ti,

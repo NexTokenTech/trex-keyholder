@@ -33,7 +33,7 @@ use aes_gcm::{
 };
 use clap::Parser;
 use config::Config as ApiConfig;
-use enclave::api::{enclave_account, enclave_init, perform_nts_time, get_rsa_pubkey};
+use enclave::api::{enclave_account, enclave_init, perform_nts_time, get_rsa_pubkey,perform_test_rsa3072,encrypt_rsa3072};
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
 #[allow(unused)]
@@ -90,7 +90,8 @@ enum Action {
 	GetFreeBalance,
 	TestNts,
 	TestRsa,
-	Rsa3072PubKey
+	Rsa3072PubKey,
+	TestEncrypt
 }
 
 /// Seed of signature keypair for testing
@@ -230,10 +231,13 @@ fn main() {
 			perform_nts_time(&enclave).unwrap();
 		},
 		Action::TestRsa => {
-			get_rsa_pubkey(&enclave);
+			perform_test_rsa3072(&enclave);
 		},
 		Action::Rsa3072PubKey => {
 			get_rsa_pubkey(&enclave);
+		},
+		Action::TestEncrypt => {
+			encrypt_rsa3072(&enclave,b"Hello World".to_vec());
 		}
 	}
 }
