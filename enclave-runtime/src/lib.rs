@@ -47,6 +47,19 @@ extern crate webpki;
 extern crate webpki_roots;
 extern crate yasna;
 
+/// Related implementation methods of remote attestation in enclave
+pub mod attestation;
+mod byteorder;
+mod cert;
+/// A specialized Error type and Result type in enclave.
+pub mod error;
+mod hex;
+mod nts;
+mod nts_protocol;
+mod ocall;
+mod records;
+mod utils;
+
 use sgx_types::*;
 use std::{
 	cmp::{Ordering, Reverse},
@@ -60,27 +73,8 @@ use std::{
 	vec::Vec,
 };
 
-use sgx_crypto_helper::{
-	rsa3072::{Rsa3072KeyPair, Rsa3072PubKey},
-	RsaKeyPair,
-};
-use sgx_types::{SGX_RSA3072_KEY_SIZE, SGX_RSA3072_PUB_EXP_SIZE};
-
 use log::*;
 use std::str;
-
-/// Related implementation methods of remote attestation in enclave
-pub mod attestation;
-mod byteorder;
-mod cert;
-/// A specialized Error type and Result type in enclave.
-pub mod error;
-mod hex;
-mod nts;
-mod nts_protocol;
-mod ocall;
-mod records;
-mod utils;
 
 use crate::error::{Error, Result};
 use sp_core::{crypto::Pair, Decode, Encode};
@@ -98,7 +92,7 @@ use rsa_sgx::rsa3072::{
 	ff,
 	rsa::{
 		create_rng, decrypt, encrypt, key_pair, new_private_key, new_public_key, oaep_decode,
-		oaep_encode, RsaPublicKey, HASH_TYPE, RFS,
+		oaep_encode, RsaPrivateKey, RsaPublicKey, HASH_TYPE, RFS,
 	},
 };
 use sgx_tcrypto::rsgx_sha256_slice;
@@ -109,18 +103,11 @@ pub use substrate_api_client::{
 };
 use tkp_hash::{Sha256PrivateKeyHash, Sha256PrivateKeyTime};
 
-use sgx_serialize::{DeSerializeHelper, SerializeHelper};
-
 lazy_static! {
 	static ref MIN_BINARY_HEAP: Mutex<BinaryHeap<Reverse<KeyPiece>>> =
 		Mutex::new(BinaryHeap::new());
 	pub static ref NODE_META_DATA: Mutex<Vec<u8>> = Mutex::new(Vec::<u8>::new());
 	pub static ref NTS_TIME: RwLock<u64> = RwLock::new(0u64);
-}
-
-struct LocalRsa3072PubKey {
-	pub n: [u8; SGX_RSA3072_KEY_SIZE],
-	pub e: [u8; SGX_RSA3072_PUB_EXP_SIZE],
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd)]
@@ -137,71 +124,28 @@ impl Ord for KeyPiece {
 	}
 }
 
-/// get rsa shielding pubkey from enclave
+/// generate rsa3072 keypair and store in enclave storage.
 /// # Example
 /// ```
-/// let mut pubkey = [0u8; SGX_RSA3072_KEY_SIZE + SGX_RSA3072_PUB_EXP_SIZE];
-/// let mut retval = sgx_status_t::SGX_SUCCESS;
-/// unsafe {
-/// 	ffi::get_rsa_encryption_pubkey(
-/// 		enclave.geteid(),
-/// 		&mut retval,
-/// 		pubkey.as_mut_ptr(),
-/// 		pubkey.len() as u32,
-/// 	);
-/// };
-/// let rsa_pubkey: Rsa3072PubKey = unsafe { std::mem::transmute(pubkey) };
+/// let mut pubkey = [0u8; SHIELDING_KEY_SIZE];
+/// 	let mut effective_size = 0u32;
+/// 	let mut retval = sgx_status_t::SGX_SUCCESS;
+/// 	let result = unsafe {
+/// 		ffi::generate_rsa_3072_pubkey(
+/// 			enclave.geteid(),
+/// 			&mut retval,
+/// 			pubkey.as_mut_ptr(),
+/// 			pubkey.len() as u32,
+/// 			&mut effective_size
+/// 		)
+/// 	};
+/// 	let (pubkey_json_vec, _) = pubkey.split_at_mut(effective_size as usize);
 /// ```
-#[no_mangle]
-pub unsafe extern "C" fn get_rsa_encryption_pubkey(
-	pubkey: *mut u8,
-	pubkey_size: u32,
-) -> sgx_status_t {
-	if SgxFile::open(KEYFILE).is_err() {
-		let rsa_keypair = Rsa3072KeyPair::new().unwrap();
-		let rsa_key_json = serde_json::to_string(&rsa_keypair).unwrap();
-		println!("~~~~~~~~~~~~~~~~~~~~~~~{:?}", rsa_key_json);
-		provisioning_key(rsa_key_json.as_ptr() as *const u8, rsa_key_json.len(), KEYFILE);
-	}
-	let mut key_vec: Vec<u8> = Vec::new();
-	let key_json_str = match SgxFile::open(KEYFILE) {
-		Ok(mut f) => match f.read_to_end(&mut key_vec) {
-			Ok(len) => {
-				println!("Read {} bytes from Key file", len);
-				std::str::from_utf8(&key_vec).unwrap()
-			},
-			Err(x) => {
-				println!("Read keyfile failed {}", x);
-				return sgx_status_t::SGX_ERROR_UNEXPECTED
-			},
-		},
-		Err(x) => {
-			println!("get_sealed_pcl_key cannot open keyfile, please check if key is provisioned successfully! {}", x);
-			return sgx_status_t::SGX_ERROR_UNEXPECTED
-		},
-	};
-
-	let rsa_keypair: Rsa3072KeyPair = serde_json::from_str(&key_json_str).unwrap();
-
-	let rsa_pubkey: Rsa3072PubKey = rsa_keypair.export_pubkey().unwrap();
-
-	// Use unsafe method to copy the memory of public key.
-	let pubkey_exposed: LocalRsa3072PubKey = std::mem::transmute(rsa_pubkey);
-	let pubkey_slice = slice::from_raw_parts_mut(pubkey, pubkey_size as usize);
-	// copy the RSA modulus to the left part and public exponent to the right part.
-	let (left, right) = pubkey_slice.split_at_mut(SGX_RSA3072_KEY_SIZE);
-	left.clone_from_slice(&pubkey_exposed.n);
-	// fill the right side with whitespace
-	right.clone_from_slice(&pubkey_exposed.e);
-
-	sgx_status_t::SGX_SUCCESS
-}
-
 #[no_mangle]
 pub unsafe extern "C" fn generate_rsa_3072_pubkey(
 	pubkey: *mut u8,
 	pubkey_size: u32,
-	effective_size: *mut u32
+	effective_size: *mut u32,
 ) -> sgx_status_t {
 	if SgxFile::open(RSA3072_PRIVATE_KEY_FILE).is_err() {
 		let mut rng = create_rng();
@@ -233,7 +177,6 @@ pub unsafe extern "C" fn generate_rsa_3072_pubkey(
 		},
 	};
 	let key_json_vec = key_json_str.to_string().as_bytes().to_vec();
-	let rsa_pubkey: RsaPublicKey = serde_json::from_str(&key_json_str).unwrap();
 	let pubkey_slice = slice::from_raw_parts_mut(pubkey, pubkey_size as usize);
 	write_slice_and_whitespace_pad(pubkey_slice, key_json_vec.clone())
 		.expect("Error in writing ext slice!");
@@ -242,22 +185,33 @@ pub unsafe extern "C" fn generate_rsa_3072_pubkey(
 	sgx_status_t::SGX_SUCCESS
 }
 
-#[no_mangle]
-pub extern "C" fn test_str_out(test_str: *mut u8, test_str_size: u32) -> sgx_status_t {
-	let extrinsic_slice1 = unsafe { slice::from_raw_parts_mut(test_str, test_str_size as usize) };
-	println!("test_str_out:{:?}", extrinsic_slice1);
-	write_slice_and_whitespace_pad(extrinsic_slice1, "hello world".to_string().as_bytes().to_vec())
-		.expect("Error in writing ext slice!");
-	sgx_status_t::SGX_SUCCESS
-}
-
+/// encrypt plain text with rsa3072
+/// # Example
+/// ```
+/// let mut retval = sgx_status_t::SGX_SUCCESS;
+/// 	let cipher_size = SGX_RSA3072_KEY_SIZE;
+/// 	let mut ciphertext: Vec<u8> = vec![0u8; cipher_size as usize];
+///
+/// 	let mut retval = sgx_status_t::SGX_SUCCESS;
+/// 	let mut res: u8 = 1;
+/// 	let result = unsafe {
+/// 		ffi::encrypt_rsa3072(
+/// 			enclave.geteid(),
+/// 			&mut retval,
+/// 			plaintext.as_ptr(),
+/// 			plaintext.len() as usize,
+/// 			ciphertext.as_mut_ptr(),
+/// 			ciphertext.len() as usize,
+/// 		)
+/// 	};
+/// ```
 #[no_mangle]
 pub unsafe extern "C" fn encrypt_rsa3072(
 	plain: *const u8,
 	plain_len: usize,
 	cipher: *mut u8,
-	cipher_len: usize
-) -> sgx_status_t{
+	cipher_len: usize,
+) -> sgx_status_t {
 	let plain_text_slice = slice::from_raw_parts(plain, plain_len as usize);
 
 	let mut key_vec: Vec<u8> = Vec::new();
@@ -277,7 +231,6 @@ pub unsafe extern "C" fn encrypt_rsa3072(
 			return sgx_status_t::SGX_ERROR_UNEXPECTED
 		},
 	};
-	let key_json_vec = key_json_str.to_string().as_bytes().to_vec();
 	let rsa_pubkey: RsaPublicKey = serde_json::from_str(&key_json_str).unwrap();
 
 	let sha = HASH_TYPE;
@@ -289,14 +242,24 @@ pub unsafe extern "C" fn encrypt_rsa3072(
 	encrypt(&rsa_pubkey, &e, &mut c); /* encrypt encoded message */
 	println!("cipher:{:?}", c);
 
-	let cipher_slice =
-		slice::from_raw_parts_mut(cipher, cipher_len as usize);
-	write_slice_and_whitespace_pad(cipher_slice, c.to_vec())
-		.expect("Error in writing ext slice!");
+	let cipher_slice = slice::from_raw_parts_mut(cipher, cipher_len as usize);
+	write_slice_and_whitespace_pad(cipher_slice, c.to_vec()).expect("Error in writing ext slice!");
 
 	sgx_status_t::SGX_SUCCESS
 }
-
+/// test generate rsa3072 keypair and test encryption and decryption.
+/// # Example
+/// ```
+/// let mut retval = sgx_status_t::SGX_SUCCESS;
+///	let mut pubkey = [0u8; 32 as usize];
+///
+///	let result = unsafe {
+///		ffi::test_rsa3072(
+///			enclave.geteid(),
+///			&mut retval,
+///		)
+///	};
+/// ```
 #[no_mangle]
 pub unsafe extern "C" fn test_rsa3072() -> sgx_status_t {
 	let sha = HASH_TYPE;
@@ -774,23 +737,23 @@ pub unsafe extern "C" fn perform_expire_key(
 ///	};
 ///	println!("shielding pub key");
 ///	let rsa_pubkey = get_shielding_pubkey(&enclave);
-// 	let plaintext: Vec<u8> = "test encrypt text and decrypt cipher".to_string().into_bytes();
-// 	let mut ciphertext: Vec<u8> = Vec::new();
-// 	rsa_pubkey.encrypt_buffer(&plaintext, &mut ciphertext).expect("Encrypt Error");
-//
-// 	let mut retval = sgx_status_t::SGX_SUCCESS;
-// 	let mut res: u8 = 1;
-// 	unsafe {
-// 		ffi::test_decrypt(
-// 			enclave.geteid(),
-// 			&mut retval,
-// 			plaintext.as_ptr(),
-// 			plaintext.len() as u32,
-// 			ciphertext.as_ptr(),
-// 			ciphertext.len() as u32,
-// 			&mut res,
-// 		);
-// 	};
+/// 	let plaintext: Vec<u8> = "test encrypt text and decrypt cipher".to_string().into_bytes();
+/// 	let mut ciphertext: Vec<u8> = Vec::new();
+/// 	rsa_pubkey.encrypt_buffer(&plaintext, &mut ciphertext).expect("Encrypt Error");
+///
+/// 	let mut retval = sgx_status_t::SGX_SUCCESS;
+/// 	let mut res: u8 = 1;
+/// 	unsafe {
+/// 		ffi::test_decrypt(
+/// 			enclave.geteid(),
+/// 			&mut retval,
+/// 			plaintext.as_ptr(),
+/// 			plaintext.len() as u32,
+/// 			ciphertext.as_ptr(),
+/// 			ciphertext.len() as u32,
+/// 			&mut res,
+/// 		);
+/// 	};
 /// ```
 #[no_mangle]
 pub extern "C" fn test_decrypt(
@@ -901,19 +864,20 @@ fn get_decrypt_cipher_text(cipher_text: *const u8, cipher_len: usize) -> Vec<u8>
 	let ciphertext_bin = unsafe { slice::from_raw_parts(cipher_text, cipher_len) };
 	let mut keyvec: Vec<u8> = Vec::new();
 
-	let key_json_str = match SgxFile::open(KEYFILE) {
+	let key_json_str = match SgxFile::open(RSA3072_PRIVATE_KEY_FILE) {
 		Ok(mut f) => match f.read_to_end(&mut keyvec) {
 			Ok(_len) => std::str::from_utf8(&keyvec).unwrap(),
 			Err(_x) => "",
 		},
 		Err(_x) => "",
 	};
-	//println!("key_json = {}", key_json_str);
-	let rsa_keypair: Rsa3072KeyPair = serde_json::from_str(&key_json_str).unwrap();
-	//println!("Recovered key = {:?}", rsa_keypair);
-	let mut plaintext = Vec::new();
-	rsa_keypair.decrypt_buffer(&ciphertext_bin, &mut plaintext).unwrap();
-	plaintext
+	let rsa_privatekey: RsaPrivateKey = serde_json::from_str(&key_json_str).unwrap();
+	let sha = HASH_TYPE;
+	let mut ml: [u8; RFS] = [0; RFS];
+	decrypt(&rsa_privatekey, &ciphertext_bin, &mut ml);
+	let used_size = oaep_decode(sha, None, &mut ml);
+	let (message_decrypt, _) = ml.split_at_mut(used_size);
+	message_decrypt.to_vec()
 }
 
 #[allow(unused)]

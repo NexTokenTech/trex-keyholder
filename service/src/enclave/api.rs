@@ -17,13 +17,12 @@
 use crate::enclave::{error::Error, ffi};
 use frame_support::ensure;
 use log::*;
-use sgx_crypto_helper::rsa3072::Rsa3072PubKey;
 use sgx_types::*;
 use sgx_urts::SgxEnclave;
 use sp_core::{crypto::AccountId32, ed25519};
 /// keep this api free from chain-specific types!
 use std::io::{Read, Write};
-use std::{fs::File, path::PathBuf, result};
+use std::{fs::File, path::PathBuf};
 use tkp_settings::{
 	files::{ENCLAVE_FILE, ENCLAVE_TOKEN},
 	keyholder::{KEY_EXT_MAX_SIZE, AES_KEY_MAX_SIZE, RA_EXT_MAX_SIZE,SHIELDING_KEY_SIZE},
@@ -137,24 +136,6 @@ pub fn perform_ra(
 	ensure!(retval == sgx_status_t::SGX_SUCCESS, Error::Sgx(retval));
 
 	Ok(unchecked_extrinsic)
-}
-
-/// get shielding pubkey from enclave
-#[allow(unused)]
-pub fn get_shielding_pubkey(enclave: &SgxEnclave) -> Rsa3072PubKey {
-	let mut pubkey = [0u8; SGX_RSA3072_KEY_SIZE + SGX_RSA3072_PUB_EXP_SIZE];
-	let mut retval = sgx_status_t::SGX_SUCCESS;
-	unsafe {
-		ffi::get_rsa_encryption_pubkey(
-			enclave.geteid(),
-			&mut retval,
-			pubkey.as_mut_ptr(),
-			pubkey.len() as u32,
-		);
-	};
-	let rsa_pubkey: Rsa3072PubKey = unsafe { std::mem::transmute(pubkey) };
-	debug!("Enclave's RSA pubkey:\n{:?}", rsa_pubkey);
-	rsa_pubkey
 }
 
 #[allow(unused)]
@@ -423,6 +404,8 @@ pub fn perform_test_rsa3072(enclave: &SgxEnclave) -> Result<(), Error> {
 	Ok(())
 }
 
+/// Test encrypt plain text with rsa3072 in Enclave.
+#[allow(unused)]
 pub fn encrypt_rsa3072(
 	enclave: &SgxEnclave,
 	plaintext: Vec<u8>,

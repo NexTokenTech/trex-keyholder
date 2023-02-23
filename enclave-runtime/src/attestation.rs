@@ -21,14 +21,14 @@ use core::default::Default;
 use itertools::Itertools;
 
 use crate::{
-	get_rsa_encryption_pubkey, utils::node_metadata::NodeMetadata, write_slice_and_whitespace_pad,
+	generate_rsa_3072_pubkey, utils::node_metadata::NodeMetadata, write_slice_and_whitespace_pad,
 	Error, NODE_META_DATA,
 };
 use log::*;
 use sgx_rand::*;
 use sgx_tcrypto::*;
 use sgx_tse::*;
-use sgx_types::{SGX_RSA3072_KEY_SIZE, *};
+use sgx_types::*;
 use sp_core::{blake2_256, Decode, Encode, Pair};
 use std::{
 	io::{Read, Write},
@@ -45,7 +45,10 @@ pub use substrate_api_client::{
 	compose_extrinsic_offline, ExtrinsicParams, PlainTip, PlainTipExtrinsicParams,
 	PlainTipExtrinsicParamsBuilder, SubstrateDefaultSignedExtra, UncheckedExtrinsicV4,
 };
-use tkp_settings::files::{RA_API_KEY_FILE, RA_SPID_FILE};
+use tkp_settings::{
+	files::{RA_API_KEY_FILE, RA_SPID_FILE},
+	keyholder::SHIELDING_KEY_SIZE,
+};
 use tkp_sgx_crypto::Ed25519Seal;
 use tkp_sgx_io::StaticSealedIO;
 
@@ -108,16 +111,17 @@ pub unsafe extern "C" fn perform_ra(
 	let _result = ecc_handle.open();
 	let (prv_k, pub_k) = ecc_handle.create_key_pair().unwrap();
 
-	let (attn_report, sig, cert) = match create_attestation_report(&chain_signer.public().0, sign_type) {
-		Ok(r) => {
-			println!("Success in create_attestation_report: {:?}", r);
-			r
-		},
-		Err(e) => {
-			debug!("Error in create_attestation_report: {:?}", e);
-			return e
-		},
-	};
+	let (attn_report, sig, cert) =
+		match create_attestation_report(&chain_signer.public().0, sign_type) {
+			Ok(r) => {
+				println!("Success in create_attestation_report: {:?}", r);
+				r
+			},
+			Err(e) => {
+				debug!("Error in create_attestation_report: {:?}", e);
+				return e
+			},
+		};
 
 	let payload = attn_report + "|" + &sig + "|" + &cert;
 	let (_key_der, cert_der) = match cert::gen_ecc_cert(payload, &prv_k, &pub_k, &ecc_handle) {
@@ -185,14 +189,19 @@ pub unsafe extern "C" fn perform_ra(
 	);
 	// Generate shielding pubkey. This vector contains two parts, the first part is rsa modules
 	// (384 bytes), the second part is the public exponent (4 bytes).
-	let pubkey_size = SGX_RSA3072_KEY_SIZE + SGX_RSA3072_PUB_EXP_SIZE;
-	let mut pubkey = vec![0u8; pubkey_size as usize];
-	get_rsa_encryption_pubkey(pubkey.as_mut_ptr(), pubkey.len() as u32);
-	info!("RSA pub key: {:?}", pubkey);
+	// let pubkey_size = SGX_RSA3072_KEY_SIZE + SGX_RSA3072_PUB_EXP_SIZE;
+	// let mut pubkey = vec![0u8; pubkey_size as usize];
+	// get_rsa_encryption_pubkey(pubkey.as_mut_ptr(), pubkey.len() as u32);
+	// info!("RSA pub key: {:?}", pubkey);
+	let mut pubkey = [0u8; SHIELDING_KEY_SIZE];
+	let mut effective_size = 0u32;
+	generate_rsa_3072_pubkey(pubkey.as_mut_ptr(), pubkey.len() as u32, &mut effective_size);
+	let (pubkey_json_vec, _) = pubkey.split_at_mut(effective_size as usize);
+
 	#[allow(clippy::redundant_clone)]
 	let xt = compose_extrinsic_offline!(
 		signer,
-		(call, cert_der.to_vec(), url_slice.to_vec(), pubkey.to_vec()),
+		(call, cert_der.to_vec(), url_slice.to_vec(), pubkey_json_vec.to_vec()),
 		extrinsic_params
 	);
 

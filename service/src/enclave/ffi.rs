@@ -19,15 +19,6 @@
 use sgx_types::{sgx_enclave_id_t, sgx_status_t};
 
 extern "C" {
-	/// get rsa shielding pubkey from enclave
-	#[allow(unused)]
-	pub fn get_rsa_encryption_pubkey(
-		eid: sgx_enclave_id_t,
-		retval: *mut sgx_status_t,
-		pubkey: *mut u8,
-		pubkey_size: u32,
-	) -> sgx_status_t;
-
 	#[allow(unused)]
 	pub fn generate_rsa_3072_pubkey(
 		eid: sgx_enclave_id_t,
@@ -163,6 +154,7 @@ extern "C" {
 		retval: *mut sgx_status_t,
 	) -> sgx_status_t;
 
+	#[allow(unused)]
 	pub fn encrypt_rsa3072(
 		eid: sgx_enclave_id_t,
 		retval: *mut sgx_status_t,
