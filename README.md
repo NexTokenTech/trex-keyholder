@@ -35,6 +35,15 @@ If you want to run the service without remote attestation verify,you can run:
 cd bin
 RUST_LOG=info ./trex-keyholder -c ../service/src/config.yml --skip-ra
 ```
+### Build Docker Images
+There is a docker file `/docker/builder.Dockerfile` to build a builder image for keyholder executables.
+```shell
+docker build -f docker/builder.Dockerfile -t trex-keyholder:builder .
+```
+Another docker file is to build the executables.
+```shell
+docker build -f docker/keyholder.Dockerfile -t trex-keyholder:latest .
+```
 
 ## Unit Test
 A number of unit tests cover the core functions around the enclave, the enclave runtime library needs to be built first 
