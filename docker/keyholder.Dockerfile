@@ -17,14 +17,20 @@
 
 FROM trexnode.azurecr.io/keyholder:builder AS builder
 ARG MODE=SW
-ARG SGX_SDK=/opt/sgxsdk
 ARG PROFILE=release
 # UPDATE RUST DEPENDENCIES
 ENV RUSTUP_HOME "/root/.rustup"
 ENV CARGO_HOME "/root/.cargo"
-ENV LD_LIBRARY_PATH "/opt/intel/sgx-aesm-service/aesm/"
+ENV LD_LIBRARY_PATH "/opt/sgxsdk/sdk_libs:/opt/intel/sgx-aesm-service/aesm/"
+ENV PKG_CONFIG_PATH ":/opt/sgxsdk/pkgconfig"
+ENV RUST_TOOLCHAIN "nightly-2022-11-10"
+ENV SGX_LINUX_X64_SDK "sgx_linux_x64_sdk_2.18.101.1.bin"
+ENV SGX_SDK "/opt/sgxsdk"
+ENV SHLVL "1"
+ENV VERSION "2.18.101.1-jammy1"
+ENV PATH "/root/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/sgxsdk/bin:/opt/sgxsdk/bin/x64"
 COPY . /root/trex-keyholder
 RUN . /opt/sgxsdk/environment
 RUN . /$HOME/.cargo/env
-RUN cd /root/trex-keyholder && PATH=$HOME/.cargo/bin:$PATH SGX_MODE=$MODE SGX_SDK=$SGX_SDK make
+RUN cd /root/trex-keyholder && SGX_MODE=$MODE make
 WORKDIR /root/trex-keyholder/bin
