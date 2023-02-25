@@ -13,8 +13,8 @@ serde = { version = "1.0", default-features = false, features = ["derive", "allo
 postcard = { version = "0.7.2", default-features = false, features = ["alloc"] }
 
 # sgx dependencies
-sgx_tstd = { optional = true, features = ["untrusted_fs","net","backtrace"], git = "https://github.com/apache/teaclave-sgx-sdk.git", branch = "master" }
-sgx_types = { git = "https://github.com/apache/teaclave-sgx-sdk.git", branch = "master" }
+sgx_tstd = { optional = true, features = ["untrusted_fs","net","backtrace"], git="https://github.com/NexTokenTech/incubator-teaclave-sgx-sdk.git",  version="1.1.6" }
+sgx_types = { git="https://github.com/NexTokenTech/incubator-teaclave-sgx-sdk.git",  version="1.1.6" }
 
 # local
 environmental = { path = "../environmental", default-features = false }

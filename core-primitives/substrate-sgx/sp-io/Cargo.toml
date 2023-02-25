@@ -15,8 +15,8 @@ tracing = { version = "0.1.25", default-features = false }
 tracing-core = { version = "0.1.17", default-features = false}
 log = { version = "0.4", default-features = false }
 
-sgx_tstd  = { optional = true, features = ["untrusted_fs","net","backtrace"], git = "https://github.com/apache/teaclave-sgx-sdk.git", branch = "master" }
-sgx_types = { optional = true, git = "https://github.com/apache/teaclave-sgx-sdk.git", branch = "master" }
+sgx_tstd  = { optional = true, features = ["untrusted_fs","net","backtrace"], git="https://github.com/NexTokenTech/incubator-teaclave-sgx-sdk.git",  version="1.1.6" }
+sgx_types = { optional = true, git="https://github.com/NexTokenTech/incubator-teaclave-sgx-sdk.git",  version="1.1.6" }
 itp-sgx-externalities = { default-features = false, path = "../externalities" }
 
 # Substrate dependencies
