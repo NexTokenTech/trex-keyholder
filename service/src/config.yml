@@ -9,7 +9,7 @@ settings:
   - SubcommandRequired
 
 # Config Settings for key-holder
-node_ip: ws://127.0.0.1
+node_ip: ws://trex-node
 node_port: 9944
 keyholder_ip: 0.0.0.0
 mu_ra_external_address:

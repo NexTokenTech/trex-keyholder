@@ -1,0 +1,27 @@
+version: "3.3"
+
+services:
+  trex-node:
+    container_name: trex
+    image: trexnode.azurecr.io/trex-node:test
+    ports:
+      - "9933:9933"
+      - "9944:9944"
+      - "30333:30333"
+    command: --dev --ws-external --rpc-cors all --rpc-methods=unsafe --rpc-external
+
+  key-holder:
+    stdin_open: true
+    tty: true
+    container_name: 'keyholder'
+    image: trexnode.azurecr.io/keyholder:test
+    depends_on:
+      - trex-node
+
+  cli:
+    stdin_open: true
+    tty: true
+    container_name: 'cli'
+    image: trexnode.azurecr.io/keyholder:test
+    depends_on:
+      - trex-node

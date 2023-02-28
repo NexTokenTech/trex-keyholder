@@ -16,6 +16,8 @@
 # under the License.
 
 FROM trexnode.azurecr.io/keyholder:builder AS builder
+ARG PROFILE=release
+# UPDATE RUST DEPENDENCIES
 ARG MODE=SW
 ARG PROFILE=release
 # UPDATE RUST DEPENDENCIES
@@ -32,5 +34,9 @@ ENV PATH "/root/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sb
 COPY . /root/trex-keyholder
 RUN . /opt/sgxsdk/environment
 RUN . /$HOME/.cargo/env
+RUN mv /root/trex-keyholder/run.sh /root/run.sh
 RUN cd /root/trex-keyholder && SGX_MODE=$MODE make
-WORKDIR /root/trex-keyholder/bin
+RUN git clone https://github.com/NexTokenTech/trex-account-funds.git /root/trex-account-funds
+RUN cargo install subxt-cli
+RUN cd /root/trex-account-funds && cargo build --$PROFILE
+WORKDIR /root
