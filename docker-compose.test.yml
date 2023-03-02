@@ -3,7 +3,7 @@ version: "3.3"
 services:
   trex-node:
     container_name: "trex-with-keyholder"
-    image: trexnode.azurecr.io/trex-node:latest
+    image: trexnode.azurecr.io/trex-node:test
     ports:
       - "9933:9933"
       - "9944:9944"
@@ -14,12 +14,10 @@ services:
     stdin_open: true
     tty: true
     container_name: 'keyholder'
-    image: trexnode.azurecr.io/keyholder:latest
+    image: trexnode.azurecr.io/keyholder:test
     depends_on:
       - trex-node
-    # You may want to manually configure your keyholder node for the actual deployment
-    # Auto run script is only for test-net and integration test.
-    # command: bash -c "/bin/bash run.sh"
+    command: bash -c "/bin/bash run.sh"
 
   cli:
     stdin_open: true
