@@ -44,6 +44,10 @@ Another docker file is to build the executables.
 ```shell
 docker build -f docker/keyholder.Dockerfile -t trex-keyholder:latest .
 ```
+For software-simulated test mode, you may use the test dockerfile to build a test image.
+```shell
+docker build -f docker/keyholder.Dockerfile -t trex-keyholder:test .
+```
 
 ## Unit Test
 A number of unit tests cover the core functions around the enclave, the enclave runtime library needs to be built first 
@@ -55,8 +59,34 @@ make
 cargo test --release
 ```
 
-## CLI tool
-A CLI tool is built to provide utilities for testing and basic operations.
+### Unit test in a container
+For dev and test, we provide a docker image for run the unit test inside a docker image.
+Build the docker image as mentioned above and use the following method to run the unit test.
+You may pull a pre-built image "trexnode.azurecr.io/keyholder:test" from a public registry instead build it by yourself.
+```shell
+docker run -it trex-keyholder:test
+root@xxxxxx:~# cd trex-keyholder/bin && cargo test
+```
+
+## Integration Test
+There is a test CLI tool to test the integration between the keyholder node and TREX node. The CLI tool will simulate a client to send an encrypted message
+to the keyholder and wait a couple of seconds until it decrypted. Then, get the decrypted message and compare with the
+original one.
+
+This test requires to deploy a local network and test the keyholder alongside a TREX node.
+There is a docker compose file to get it setup and run. 
+```shell
+ docker compose -f docker-compose.test.yml up -d
+```
+Then, you need to use the CLI tool to test it.
+```shell
+docker attach cli
+root@xxxxxx:~# cd trex-keyholder/bin && RUST_LOG=info ./cli -c ../service/src/config.yml -s ../service/src/seed.yml test
+```
+The integration test is successful if there is no panic or error on the screen.
+
+## Keyholder CLI tool
+A CLI tool is built to provide utilities for basic operations on the keyholder node.
 ### Runtime API Test
 The dev test function uses a well-know account for testing purpose in runtime. The well-known seed is in the 
 local yaml file "seed.yml" for testing and dev purposes.
