@@ -48,6 +48,28 @@ For software-simulated test mode, you may use the test dockerfile to build a tes
 ```shell
 docker build -f docker/keyholder.Dockerfile -t trex-keyholder:test .
 ```
+### Run in Docker
+You may pull the latest image from a public container registry instead of building it by yourself. 
+Use the following command to pull a pre-built image.
+
+For development and base builder:
+```shell
+docker pull docker pull trexnode.azurecr.io/keyholder:builder
+```
+For deployment:
+```shell
+docker pull docker pull trexnode.azurecr.io/keyholder:latest
+```
+For test:
+```shell
+docker pull docker pull trexnode.azurecr.io/keyholder:test
+```
+Remember to sign out with docker logout from your existing login credentials if you have errors.
+
+You may start a local network with SGX hardware supports:
+```shell
+docker compose up -d
+```
 
 ## Unit Test
 A number of unit tests cover the core functions around the enclave, the enclave runtime library needs to be built first 
