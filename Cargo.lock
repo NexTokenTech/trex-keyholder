@@ -1359,7 +1359,7 @@ dependencies = [
 [[package]]
 name = "hashbrown_tstd"
 version = "0.12.0"
-source = "git+https://github.com/NexTokenTech/incubator-teaclave-sgx-sdk.git?branch=master#58019ede3229d5f08229fb8deb391e2c6e0debd3"
+source = "git+https://github.com/NexTokenTech/incubator-teaclave-sgx-sdk#58019ede3229d5f08229fb8deb391e2c6e0debd3"
 
 [[package]]
 name = "heck"
@@ -3124,12 +3124,12 @@ dependencies = [
 [[package]]
 name = "sgx_alloc"
 version = "1.1.6"
-source = "git+https://github.com/NexTokenTech/incubator-teaclave-sgx-sdk.git?branch=master#58019ede3229d5f08229fb8deb391e2c6e0debd3"
+source = "git+https://github.com/NexTokenTech/incubator-teaclave-sgx-sdk#58019ede3229d5f08229fb8deb391e2c6e0debd3"
 
 [[package]]
 name = "sgx_backtrace_sys"
 version = "1.1.6"
-source = "git+https://github.com/NexTokenTech/incubator-teaclave-sgx-sdk.git?branch=master#58019ede3229d5f08229fb8deb391e2c6e0debd3"
+source = "git+https://github.com/NexTokenTech/incubator-teaclave-sgx-sdk#58019ede3229d5f08229fb8deb391e2c6e0debd3"
 dependencies = [
  "cc",
  "sgx_build_helper",
@@ -3139,7 +3139,7 @@ dependencies = [
 [[package]]
 name = "sgx_build_helper"
 version = "1.1.6"
-source = "git+https://github.com/NexTokenTech/incubator-teaclave-sgx-sdk.git?branch=master#58019ede3229d5f08229fb8deb391e2c6e0debd3"
+source = "git+https://github.com/NexTokenTech/incubator-teaclave-sgx-sdk#58019ede3229d5f08229fb8deb391e2c6e0debd3"
 
 [[package]]
 name = "sgx_crypto_helper"
@@ -3151,45 +3151,45 @@ dependencies = [
  "serde",
  "serde-big-array",
  "serde_derive",
- "sgx_types 1.1.6 (git+https://github.com/NexTokenTech/incubator-teaclave-sgx-sdk)",
+ "sgx_types",
  "sgx_ucrypto",
 ]
 
 [[package]]
 name = "sgx_demangle"
 version = "1.1.6"
-source = "git+https://github.com/NexTokenTech/incubator-teaclave-sgx-sdk.git?branch=master#58019ede3229d5f08229fb8deb391e2c6e0debd3"
+source = "git+https://github.com/NexTokenTech/incubator-teaclave-sgx-sdk#58019ede3229d5f08229fb8deb391e2c6e0debd3"
 
 [[package]]
 name = "sgx_libc"
 version = "1.1.6"
-source = "git+https://github.com/NexTokenTech/incubator-teaclave-sgx-sdk.git?branch=master#58019ede3229d5f08229fb8deb391e2c6e0debd3"
+source = "git+https://github.com/NexTokenTech/incubator-teaclave-sgx-sdk#58019ede3229d5f08229fb8deb391e2c6e0debd3"
 dependencies = [
- "sgx_types 1.1.6 (git+https://github.com/NexTokenTech/incubator-teaclave-sgx-sdk.git?branch=master)",
+ "sgx_types",
 ]
 
 [[package]]
 name = "sgx_tprotected_fs"
 version = "1.1.6"
-source = "git+https://github.com/NexTokenTech/incubator-teaclave-sgx-sdk.git?branch=master#58019ede3229d5f08229fb8deb391e2c6e0debd3"
+source = "git+https://github.com/NexTokenTech/incubator-teaclave-sgx-sdk#58019ede3229d5f08229fb8deb391e2c6e0debd3"
 dependencies = [
  "sgx_trts",
- "sgx_types 1.1.6 (git+https://github.com/NexTokenTech/incubator-teaclave-sgx-sdk.git?branch=master)",
+ "sgx_types",
 ]
 
 [[package]]
 name = "sgx_trts"
 version = "1.1.6"
-source = "git+https://github.com/NexTokenTech/incubator-teaclave-sgx-sdk.git?branch=master#58019ede3229d5f08229fb8deb391e2c6e0debd3"
+source = "git+https://github.com/NexTokenTech/incubator-teaclave-sgx-sdk#58019ede3229d5f08229fb8deb391e2c6e0debd3"
 dependencies = [
  "sgx_libc",
- "sgx_types 1.1.6 (git+https://github.com/NexTokenTech/incubator-teaclave-sgx-sdk.git?branch=master)",
+ "sgx_types",
 ]
 
 [[package]]
 name = "sgx_tstd"
 version = "1.1.6"
-source = "git+https://github.com/NexTokenTech/incubator-teaclave-sgx-sdk.git?branch=master#58019ede3229d5f08229fb8deb391e2c6e0debd3"
+source = "git+https://github.com/NexTokenTech/incubator-teaclave-sgx-sdk#58019ede3229d5f08229fb8deb391e2c6e0debd3"
 dependencies = [
  "hashbrown_tstd",
  "sgx_alloc",
@@ -3198,14 +3198,9 @@ dependencies = [
  "sgx_libc",
  "sgx_tprotected_fs",
  "sgx_trts",
- "sgx_types 1.1.6 (git+https://github.com/NexTokenTech/incubator-teaclave-sgx-sdk.git?branch=master)",
+ "sgx_types",
  "sgx_unwind",
 ]
-
-[[package]]
-name = "sgx_types"
-version = "1.1.6"
-source = "git+https://github.com/NexTokenTech/incubator-teaclave-sgx-sdk.git?branch=master#58019ede3229d5f08229fb8deb391e2c6e0debd3"
 
 [[package]]
 name = "sgx_types"
@@ -3220,13 +3215,13 @@ dependencies = [
  "libc",
  "rand_core 0.3.1",
  "rdrand",
- "sgx_types 1.1.6 (git+https://github.com/NexTokenTech/incubator-teaclave-sgx-sdk)",
+ "sgx_types",
 ]
 
 [[package]]
 name = "sgx_unwind"
 version = "1.1.6"
-source = "git+https://github.com/NexTokenTech/incubator-teaclave-sgx-sdk.git?branch=master#58019ede3229d5f08229fb8deb391e2c6e0debd3"
+source = "git+https://github.com/NexTokenTech/incubator-teaclave-sgx-sdk#58019ede3229d5f08229fb8deb391e2c6e0debd3"
 dependencies = [
  "sgx_build_helper",
 ]
@@ -3237,7 +3232,7 @@ version = "1.1.6"
 source = "git+https://github.com/NexTokenTech/incubator-teaclave-sgx-sdk#58019ede3229d5f08229fb8deb391e2c6e0debd3"
 dependencies = [
  "libc",
- "sgx_types 1.1.6 (git+https://github.com/NexTokenTech/incubator-teaclave-sgx-sdk)",
+ "sgx_types",
 ]
 
 [[package]]
@@ -4338,7 +4333,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "sgx_crypto_helper",
- "sgx_types 1.1.6 (git+https://github.com/NexTokenTech/incubator-teaclave-sgx-sdk)",
+ "sgx_types",
  "sgx_urts",
  "sha2 0.10.6",
  "sp-core",
