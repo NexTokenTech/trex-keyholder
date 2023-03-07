@@ -120,7 +120,7 @@ RUST_LOG=info ./cli -c ../service/src/config.yml -s ../service/src/seed.yml test
 The key-holder node needs an on-chain account to register the enclave and publish remote attestation
 report. The account ID can be access by following commends.
 ```shell
-RUST_LOG=info ./cli -c ../service/src/config.yml signing-pub-key
+RUST_LOG=info ./cli -c ../service/src/config.yml -s ../service/src/seed.yml signing-pub-key
 ```
 ### Check account balance for the key-holder node
 To put the RA report on chain, the key-holder needs tokens to pay for the fee. Use this command to make
