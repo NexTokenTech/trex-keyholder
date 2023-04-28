@@ -24,7 +24,7 @@ ENV SGX_LINUX_X64_SDK_URL "$SGX_DOWNLOAD_URL_BASE/$SGX_LINUX_X64_SDK"
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-ENV RUST_TOOLCHAIN nightly-2022-11-10
+ENV RUST_TOOLCHAIN nightly-2022-10-22
 
 # install SGX dependencies
 RUN apt-get update && apt-get install -q -y \
